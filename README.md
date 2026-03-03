@@ -1,15 +1,44 @@
-# Elysia with Bun runtime
+# Backend Foro
 
-## Getting Started
-To get started with this template, simply paste this command into your terminal:
+Elysia + MongoDB + Bun
+
+## Setup
+
 ```bash
-bun create elysia ./elysia-example
+# Install dependencies
+bun install
+
+# Setup environment
+cp .env.example .env
+```
+
+## Database
+
+**Local MongoDB:**
+```env
+DATABASE_URL="mongodb://localhost:27017/foro"
+```
+
+**Docker MongoDB:**
+```bash
+docker compose up -d
 ```
 
 ## Development
-To start the development server run:
+
 ```bash
 bun run dev
 ```
 
-Open http://localhost:3000/ with your browser to see the result.
+## Seeding
+
+```bash
+bun run seed
+```
+
+Seeds admin users from `seeds/auth.ts`.
+
+## API
+
+- **Base:** http://localhost:3000/
+- **Docs:** http://localhost:3000/openapi
