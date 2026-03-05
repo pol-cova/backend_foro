@@ -1,33 +1,17 @@
 # syntax=docker/dockerfile:1
-FROM oven/bun AS build
-
+FROM oven/bun:1-alpine AS base
 WORKDIR /app
 
+FROM base AS deps
 COPY package.json bun.lock ./
-COPY prisma ./prisma
+RUN --mount=type=cache,target=/root/.bun/install/cache \
+  bun install --frozen-lockfile --production
 
-RUN --mount=type=cache,target=/root/.bun/install/cache bun install --frozen-lockfile
-RUN bunx prisma generate
-
+FROM base AS runner
+ENV NODE_ENV=production
+COPY package.json bun.lock ./
+COPY --from=deps /app/node_modules ./node_modules
 COPY ./src ./src
-
-ENV NODE_ENV=production
-
-RUN bun build \
-	--compile \
-	--minify-whitespace \
-	--minify-syntax \
-	--outfile server \
-	src/index.ts
-
-FROM gcr.io/distroless/base
-
-WORKDIR /app
-
-COPY --from=build /app/server server
-
-ENV NODE_ENV=production
-
-CMD ["./server"]
-
+COPY ./seeds ./seeds
 EXPOSE 3000
+CMD ["bun", "run", "src/server.ts"]

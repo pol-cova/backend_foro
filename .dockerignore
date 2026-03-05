@@ -9,3 +9,8 @@ generated
 .dockerignore
 Dockerfile
 docker-compose*.yml
+test
+*.test.ts
+.cursor
+.vscode
+references

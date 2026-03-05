@@ -2,22 +2,32 @@
   "name": "backend_foro",
   "version": "1.0.50",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "bun test",
     "dev": "bun run --watch src/server.ts",
-    "seed": "bun run seeds/auth.ts"
+    "seed": "bun run seeds/auth.ts",
+    "email": "email dev --dir src/modules/email"
   },
   "dependencies": {
     "@elysiajs/cors": "^1.4.1",
     "@elysiajs/eden": "^1.4.8",
     "@elysiajs/jwt": "^1.4.1",
     "@elysiajs/openapi": "^1.4.14",
+    "@react-email/components": "^1.0.8",
+    "@types/nodemailer": "^7.0.11",
     "dotenv": "^17.3.1",
     "elysia": "^1.4.27",
-    "mongoose": "^9.2.3"
+    "mongoose": "^9.2.3",
+    "nodemailer": "^8.0.1",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
   },
   "devDependencies": {
+    "@react-email/preview-server": "5.2.9",
     "@types/node": "^25.3.3",
-    "bun-types": "latest"
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "bun-types": "latest",
+    "react-email": "^5.2.9"
   },
   "module": "src/server.js"
 }

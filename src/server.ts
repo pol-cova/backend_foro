@@ -1,18 +1,32 @@
 import "dotenv/config";
+import "./config";
+import mongoose from "mongoose";
+import { logger } from "./lib/logger";
 import { Elysia } from "elysia";
 import { openapi } from "@elysiajs/openapi";
 import { cors } from "@elysiajs/cors";
 import { database } from "./plugins/db";
-import { auth } from "./modules/auth";
+import { concursos } from "./modules/concursos";
+import { sispa } from "./modules/sispa";
+
+function getHealthStatus() {
+  const dbConnected = mongoose.connection.readyState === 1;
+  return {
+    status: dbConnected ? "ok" : "degraded",
+    database: dbConnected ? "connected" : "disconnected",
+  };
+}
 
 const app = new Elysia()
   .use(database)
   .use(openapi())
   .use(cors())
-  .get("/health", () => ({ status: "ok" }))
-  .use(auth)
+  .get("/health", getHealthStatus)
+  .use(sispa)
+  .use(concursos)
   .listen(3000);
 
-console.log(
-  `Elysia is running at ${app.server?.hostname}:${app.server?.port}`,
-);
+logger.info("Elysia is running", {
+  host: app.server?.hostname,
+  port: app.server?.port,
+});
