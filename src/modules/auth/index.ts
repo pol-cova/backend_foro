@@ -7,10 +7,14 @@ import { cookieSchema } from "./common";
 
 export const auth = new Elysia({ name: "auth", prefix: "/auth" })
   .use(jwt({ name: "jwt", secret: config.jwt.secret }))
+  .derive(({ request }) => {
+    const h = request.headers.get("authorization");
+    return { bearerToken: h?.startsWith("Bearer ") ? h.slice(7) : null };
+  })
   .macro({
     auth: {
-      async resolve({ cookie: { session }, jwt }) {
-        const raw = session?.value;
+      async resolve({ cookie: { session }, jwt, bearerToken }) {
+        const raw = session?.value ?? bearerToken;
         if (typeof raw !== "string") return status(401, AuthSchema.unauthorized.const);
         const user = await jwt.verify(raw);
         if (!user) return status(401, AuthSchema.unauthorized.const);
