@@ -23,6 +23,9 @@ export const config = {
     codigo: requireEnv("SISPA_CODIGO"),
     password: requireEnv("SISPA_PASSWORD"),
   },
+  cors: {
+    origin: optionalEnv("CORS_ORIGIN", "http://localhost:5173"),
+  },
   smtp: {
     host: optionalEnv("SMTP_HOST", "localhost"),
     port: process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 587,

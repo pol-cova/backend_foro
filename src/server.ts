@@ -5,6 +5,7 @@ import { logger } from "./lib/logger";
 import { Elysia } from "elysia";
 import { openapi } from "@elysiajs/openapi";
 import { cors } from "@elysiajs/cors";
+import { config } from "./config";
 import { database } from "./plugins/db";
 import { concursos } from "./modules/concursos";
 import { sispa } from "./modules/sispa";
@@ -20,7 +21,12 @@ function getHealthStatus() {
 const app = new Elysia()
   .use(database)
   .use(openapi())
-  .use(cors())
+  .use(
+    cors({
+      origin: config.cors.origin,
+      credentials: true,
+    })
+  )
   .get("/health", getHealthStatus)
   .use(sispa)
   .use(concursos)
