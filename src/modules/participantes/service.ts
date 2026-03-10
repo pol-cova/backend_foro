@@ -19,7 +19,8 @@ export async function addParticipante(concursoId: string, data: RegisterData) {
   if (!concurso.niveles.includes(data.nivel)) return { success: false as const, reason: "nivel_no_permitido" as const };
 
   const campos: Record<string, string> = data.campos ?? {};
-  if (constraint.field && !campos[constraint.field]) return { success: false as const, reason: "campo_requerido" as const };
+  const needsCampo = constraint.field && constraint.field !== "true" && constraint.field !== "false";
+  if (needsCampo && !campos[constraint.field!]) return { success: false as const, reason: "campo_requerido" as const };
 
   const { participantes, cupo } = concurso;
   if (participantes.length >= cupo) return { success: false as const, reason: "cupo_exceeded" as const };
@@ -37,7 +38,7 @@ export async function addParticipante(concursoId: string, data: RegisterData) {
     correo: e.correo,
     escuela: e.escuela,
     nivel: data.nivel,
-    campos: constraint.field ? { [constraint.field]: campos[constraint.field] } : {},
+    campos: needsCampo && constraint.field ? { [constraint.field]: campos[constraint.field] } : {},
   };
 
   const updated = await ConcursoModel.findByIdAndUpdate(

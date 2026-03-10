@@ -15,7 +15,8 @@ export const sispa = new Elysia({ prefix: "/sispa" })
         set.status = result.reason === "not_found" ? 404 : 503;
         return result.reason === "not_found" ? SispaSchema.notFound.const : SispaSchema.apiError.const;
       }
-      return result.estudiante;
+      const e = result.estudiante;
+      return { codigo: e.codigo, nombre: e.nombre, carrera: e.carrera, correo: e.correo, escuela: e.escuela };
     },
     {
       auth: true,

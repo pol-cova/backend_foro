@@ -9,6 +9,7 @@ function optionalEnv(key: string, defaultValue: string): string {
 }
 
 export const config = {
+  port: process.env.PORT ? Number(process.env.PORT) : 3000,
   database: {
     url: requireEnv("DATABASE_URL"),
   },

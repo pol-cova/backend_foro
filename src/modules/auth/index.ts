@@ -14,7 +14,7 @@ export const auth = new Elysia({ name: "auth", prefix: "/auth" })
   .macro({
     auth: {
       async resolve({ cookie: { session }, jwt, bearerToken }) {
-        const raw = session?.value ?? bearerToken;
+        const raw = bearerToken ?? session?.value;
         if (typeof raw !== "string") return status(401, AuthSchema.unauthorized.const);
         const user = await jwt.verify(raw);
         if (!user) return status(401, AuthSchema.unauthorized.const);

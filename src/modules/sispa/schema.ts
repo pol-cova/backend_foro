@@ -5,7 +5,6 @@ export const SispaSchema = {
     codigo: t.String(),
     nombre: t.String(),
     carrera: t.String(),
-    semestre: t.Number(),
     correo: t.String(),
     escuela: t.String(),
   }),

@@ -1,14 +1,24 @@
 import "dotenv/config";
 import "./config";
 import mongoose from "mongoose";
-import { logger } from "./lib/logger";
+import { Logger, logger } from "./lib/logger";
 import { Elysia } from "elysia";
 import { openapi } from "@elysiajs/openapi";
 import { cors } from "@elysiajs/cors";
 import { config } from "./config";
-import { database } from "./plugins/db";
+import { auth } from "./modules/auth";
 import { concursos } from "./modules/concursos";
 import { sispa } from "./modules/sispa";
+
+async function connectDatabase() {
+  try {
+    await mongoose.connect(config.database.url);
+    logger.info("Connected to MongoDB");
+  } catch (error) {
+    logger.error("Failed to connect to MongoDB", { error });
+    process.exit(1);
+  }
+}
 
 function getHealthStatus() {
   const dbConnected = mongoose.connection.readyState === 1;
@@ -19,7 +29,11 @@ function getHealthStatus() {
 }
 
 const app = new Elysia()
-  .use(database)
+  .decorate("logger", new Logger())
+  .derive(({ request }) => {
+    const h = request.headers.get("authorization");
+    return { bearerToken: h?.startsWith("Bearer ") ? h.slice(7) : null };
+  })
   .use(openapi())
   .use(
     cors({
@@ -28,11 +42,23 @@ const app = new Elysia()
     })
   )
   .get("/health", getHealthStatus)
+  .use(auth)
   .use(sispa)
-  .use(concursos)
-  .listen(3000);
+  .use(concursos);
+
+await connectDatabase();
+
+const server = Bun.serve({
+  port: config.port,
+  fetch: async (req) => {
+    const start = Date.now();
+    const res = await app.fetch(req);
+    logger.http(req, res, Date.now() - start);
+    return res;
+  },
+});
 
 logger.info("Elysia is running", {
-  host: app.server?.hostname,
-  port: app.server?.port,
+  host: server.hostname,
+  port: server.port,
 });

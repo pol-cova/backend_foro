@@ -1,5 +1,10 @@
 # Backend Foro
 
+## Ports
+
+- **Production:** 3000 (default when `PORT` is not set)
+- **Local dev:** 3145 (set `PORT=3145` in `.env` to avoid affecting prod)
+
 ## Setup
 
 ```bash
@@ -14,6 +19,7 @@ cp .env.example .env
 
 Required variables (see `.env.example`):
 - `DATABASE_URL` - MongoDB connection string
+- `PORT` - Server port (optional; defaults to 3000 for prod; set to 3145 for local dev)
 - `JWT_SECRET` - Secret for JWT signing
 - `EXTERNAL_API_URL` - SIIAU login API endpoint
 - `SISPA_URL`, `SISPA_CODIGO`, `SISPA_PASSWORD` - SISPA API credentials for student prefill
@@ -28,7 +34,7 @@ Assumes MongoDB runs elsewhere. Set `DATABASE_URL` in `.env` (e.g. `mongodb://ro
 docker compose up -d --build
 ```
 
-API at http://localhost:3000
+API at http://localhost:3000 (or whatever port is in `PORT`; use 3145 for local dev)
 
 ## Database
 
@@ -71,7 +77,7 @@ bun test
 bun email
 ```
 
-Open http://localhost:3000/email in your browser to preview the email.
+Open http://localhost:3145/email in your browser to preview the email (requires `PORT=3145` in `.env`).
 
 ## API Documentation
 
@@ -79,4 +85,4 @@ Open http://localhost:3000/email in your browser to preview the email.
 bun dev
 ```
 
-Open http://localhost:3000/openapi in your browser to view the API documentation.
+Open http://localhost:3145/openapi in your browser to view the API documentation (requires `PORT=3145` in `.env`).

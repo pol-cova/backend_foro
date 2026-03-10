@@ -31,14 +31,28 @@ function formatEntry(level: LogLevel, message: string, context?: Record<string, 
   return JSON.stringify(entry);
 }
 
-export const logger = {
+export class Logger {
   info(message: string, context?: Record<string, unknown>): void {
     process.stdout.write(formatEntry("info", message, context) + "\n");
-  },
+  }
+
   warn(message: string, context?: Record<string, unknown>): void {
     process.stderr.write(formatEntry("warn", message, context) + "\n");
-  },
+  }
+
   error(message: string, context?: Record<string, unknown>): void {
     process.stderr.write(formatEntry("error", message, context) + "\n");
-  },
-};
+  }
+
+  http(req: Request, res: Response, durationMs: number): void {
+    const status = res.status;
+    const path = new URL(req.url).pathname;
+    const method = req.method;
+    const ctx = { method, path, status, durationMs };
+    if (status >= 500) this.error("HTTP", ctx);
+    else if (status >= 400) this.warn("HTTP", ctx);
+    else this.info("HTTP", ctx);
+  }
+}
+
+export const logger = new Logger();

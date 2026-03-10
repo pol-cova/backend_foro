@@ -95,15 +95,14 @@ export async function getEstudianteByCodigo(
 
   const a = data.alumno;
   const nombre = [a.nombre, a.apellido_p, a.apellido_m].filter(Boolean).join(" ");
-  return {
-    success: true,
-    estudiante: {
-      codigo: a.codigo,
-      nombre: nombre || a.codigo,
-      carrera: a.carrera,
-      semestre: a.semestre,
-      correo: a.email,
-      escuela: ESCUELA,
-    },
+  const semestre = typeof a.semestre === "number" ? a.semestre : Number(a.semestre) || 0;
+  const estudiante = {
+    codigo: a.codigo,
+    nombre: nombre || a.codigo,
+    carrera: a.carrera,
+    semestre,
+    correo: a.email,
+    escuela: ESCUELA,
   };
+  return { success: true, estudiante };
 }

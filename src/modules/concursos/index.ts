@@ -39,17 +39,9 @@ export const concursos = new Elysia({ prefix: "/concursos" })
   )
   .get(
     "/",
-    async ({ set }) => {
-      const data = await list();
-      return data;
-    },
+    async () => list(),
     {
-      auth: true,
-      cookie: cookieSchema,
-      response: {
-        200: ConcursoSchema.concursosListResponse,
-        ...sharedAuthResponses,
-      },
+      response: { 200: ConcursoSchema.concursosListResponse },
     }
   )
   .get(
@@ -63,13 +55,10 @@ export const concursos = new Elysia({ prefix: "/concursos" })
       return result.concurso;
     },
     {
-      auth: true,
-      cookie: cookieSchema,
       params: t.Object({ id: t.String() }),
       response: {
         200: ConcursoSchema.concursoResponse,
         404: ConcursoSchema.concursoNotFound,
-        ...sharedAuthResponses,
       },
     }
   )
