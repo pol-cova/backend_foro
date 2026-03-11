@@ -1,11 +1,12 @@
 import { Elysia, t } from "elysia";
-import { addParticipante, removeParticipante } from "./service";
+import { addParticipante, listParticipantes, removeParticipante } from "./service";
 import { ParticipanteSchema } from "./schema";
 import { logger } from "../../lib/logger";
 import { sendInscripcionConfirm } from "../email/service";
 import { cookieSchema, sharedAuthResponses } from "../auth/common";
+import { AuthSchema } from "../auth/schema";
 
-type AddParticipanteReason = "not_found" | "estudiante_no_encontrado" | "cupo_exceeded" | "tipo_no_permitido" | "nivel_no_permitido" | "campo_requerido";
+type AddParticipanteReason = "not_found" | "estudiante_no_encontrado" | "cupo_exceeded" | "already_registered" | "tipo_no_permitido" | "nivel_no_permitido" | "campo_requerido";
 
 const addParticipanteErrorMap: Record<
   AddParticipanteReason,
@@ -14,12 +15,38 @@ const addParticipanteErrorMap: Record<
   not_found: { status: 404, message: ParticipanteSchema.concursoNotFound.const },
   estudiante_no_encontrado: { status: 404, message: ParticipanteSchema.estudianteNoEncontrado.const },
   cupo_exceeded: { status: 409, message: ParticipanteSchema.cupoExceeded.const },
+  already_registered: { status: 409, message: ParticipanteSchema.alreadyRegistered.const },
   tipo_no_permitido: { status: 400, message: ParticipanteSchema.tipoNoPermitido.const },
   nivel_no_permitido: { status: 400, message: ParticipanteSchema.nivelNoPermitido.const },
   campo_requerido: { status: 400, message: ParticipanteSchema.campoRequerido.const },
 };
 
 export const participantes = new Elysia({ prefix: "/:id/participantes" })
+  .get(
+    "/",
+    async ({ params: { id }, user, set }) => {
+      if (!user.isAdmin) {
+        set.status = 403;
+        return AuthSchema.forbidden.const;
+      }
+      const result = await listParticipantes(id);
+      if (!result.success) {
+        set.status = 404;
+        return ParticipanteSchema.concursoNotFound.const;
+      }
+      return result.participantes;
+    },
+    {
+      auth: true,
+      cookie: cookieSchema,
+      params: t.Object({ id: t.String() }),
+      response: {
+        200: ParticipanteSchema.participantesListResponse,
+        404: ParticipanteSchema.concursoNotFound,
+        ...sharedAuthResponses,
+      },
+    }
+  )
   .post(
     "/",
     async ({ body, params: { id }, set }) => {
@@ -45,9 +72,7 @@ export const participantes = new Elysia({ prefix: "/:id/participantes" })
       return result.participante;
     },
     {
-      auth: true,
       body: ParticipanteSchema.registerBody,
-      cookie: cookieSchema,
       params: t.Object({ id: t.String() }),
       response: {
         201: ParticipanteSchema.participanteResponse,
@@ -57,14 +82,17 @@ export const participantes = new Elysia({ prefix: "/:id/participantes" })
           ParticipanteSchema.campoRequerido,
         ]),
         404: t.Union([ParticipanteSchema.concursoNotFound, ParticipanteSchema.estudianteNoEncontrado]),
-        409: ParticipanteSchema.cupoExceeded,
-        ...sharedAuthResponses,
+        409: t.Union([ParticipanteSchema.cupoExceeded, ParticipanteSchema.alreadyRegistered]),
       },
     }
   )
   .delete(
     "/:participacionId",
-    async ({ params: { id, participacionId }, set }) => {
+    async ({ params: { id, participacionId }, user, set }) => {
+      if (!user.isAdmin) {
+        set.status = 403;
+        return AuthSchema.forbidden.const;
+      }
       const result = await removeParticipante(id, participacionId);
       if (!result.success) {
         set.status = 404;

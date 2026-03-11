@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import { ConcursoModel, type ConstraintConfig, type Participante } from "../concursos/mongoose";
+import { mapParticipante } from "../concursos/mappers";
 import { getEstudianteByCodigo } from "../sispa/service";
 import type { ParticipanteSchemaTypes } from "./schema";
 
@@ -25,6 +26,14 @@ export async function addParticipante(concursoId: string, data: RegisterData) {
   const { participantes, cupo } = concurso;
   if (participantes.length >= cupo) return { success: false as const, reason: "cupo_exceeded" as const };
 
+  const allowMultiple = constraint.allowMultiple === true;
+  if (!allowMultiple) {
+    const alreadyInSameTipo = participantes.some(
+      (p) => String(p.codigo) === String(data.codigo) && String(p.tipo) === String(data.tipo)
+    );
+    if (alreadyInSameTipo) return { success: false as const, reason: "already_registered" as const };
+  }
+
   const estudianteRes = await getEstudianteByCodigo(data.codigo);
   if (!estudianteRes.success) return { success: false as const, reason: "estudiante_no_encontrado" as const };
   const e = estudianteRes.estudiante;
@@ -44,7 +53,7 @@ export async function addParticipante(concursoId: string, data: RegisterData) {
   const updated = await ConcursoModel.findByIdAndUpdate(
     concursoId,
     { $push: { participantes: participante } },
-    { new: true }
+    { returnDocument: "after" }
   );
   const parts = updated?.participantes ?? [];
   const added = parts[parts.length - 1];
@@ -68,6 +77,14 @@ export async function addParticipante(concursoId: string, data: RegisterData) {
     concursoNombre: updated?.nombre ?? "",
     totalParticipantes: parts.length,
   };
+}
+
+export async function listParticipantes(concursoId: string) {
+  if (!mongoose.isValidObjectId(concursoId)) return { success: false as const, reason: "not_found" as const };
+  const concurso = await ConcursoModel.findById(concursoId).lean();
+  if (!concurso) return { success: false as const, reason: "not_found" as const };
+  const participantes = (concurso.participantes ?? []).map((p) => mapParticipante(p));
+  return { success: true as const, participantes };
 }
 
 export async function removeParticipante(concursoId: string, participacionId: string) {

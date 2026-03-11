@@ -3,6 +3,7 @@ import { t, type UnwrapSchema } from "elysia";
 const constraintConfig = t.Object({
   id: t.String(),
   field: t.Optional(t.String()),
+  allowMultiple: t.Optional(t.Boolean()),
 });
 
 const constraintInput = t.Union([

@@ -1,4 +1,4 @@
-import { renderToStaticMarkup } from "react-dom/server";
+import { render } from "@react-email/render";
 import nodemailer from "nodemailer";
 import { config } from "../../config";
 import { logger } from "../../lib/logger";
@@ -31,12 +31,31 @@ function isPayloadValid(payload: InscripcionConfirmPayload): boolean {
   );
 }
 
+function sanitizePayload(payload: InscripcionConfirmPayload): InscripcionConfirmPayload {
+  const campos = payload.campos ?? {};
+  const sanitizedCampos: Record<string, string> = {};
+  for (const [key, value] of Object.entries(campos)) {
+    if (value != null && typeof value === "object") continue;
+    const str = String(value ?? "").trim();
+    if (str) sanitizedCampos[key] = str;
+  }
+  return {
+    nombre: String(payload.nombre ?? "").trim(),
+    concurso: String(payload.concurso ?? "").trim(),
+    tipo: String(payload.tipo ?? "").trim(),
+    nivel: String(payload.nivel ?? "").trim(),
+    campos: sanitizedCampos,
+    totalParticipantes: Number(payload.totalParticipantes) || 0,
+  };
+}
+
 export async function sendInscripcionConfirm(to: string, payload: InscripcionConfirmPayload) {
   if (!to?.trim()) return;
   if (!isPayloadValid(payload)) return;
 
   const subject = `Inscripcion confirmada - ${payload.concurso}`;
-  const html = renderToStaticMarkup(SuccessEmail(payload));
+  const sanitized = sanitizePayload(payload);
+  const html = await render(SuccessEmail(sanitized));
 
   try {
     await transporter.sendMail({

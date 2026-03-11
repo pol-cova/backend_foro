@@ -39,7 +39,7 @@ export async function updateUser(codigo: string, data: AuthModel["updateBody"]) 
   const user = await UserModel.findOneAndUpdate(
     { codigo },
     { $set: data },
-    { new: true, runValidators: true }
+    { returnDocument: "after", runValidators: true }
   );
   if (!user) return { success: false as const, reason: "not_found" as const };
   return { success: true as const, user: { codigo: user.codigo, nombre: user.nombre, isAdmin: user.isAdmin } };

@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 export interface ConstraintConfig {
   id: string;
   field?: string;
+  allowMultiple?: boolean;
 }
 
 export interface Participante {
@@ -30,7 +31,7 @@ export interface Concurso {
 }
 
 const constraintSchema = new mongoose.Schema<ConstraintConfig>(
-  { id: { type: String, required: true }, field: String },
+  { id: { type: String, required: true }, field: String, allowMultiple: { type: Boolean, default: false } },
   { _id: false }
 );
 

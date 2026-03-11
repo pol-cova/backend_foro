@@ -8,9 +8,15 @@ type UpdateData = ConcursoTypes["updateBody"];
 
 type ConstraintInput = CreateData["constraints"];
 
-function normalizeConstraints(c: ConstraintInput): { id: string; field?: string }[] {
-  if (Array.isArray(c)) return c;
-  return Object.entries(c).map(([id, field]) => ({ id, ...(field && { field }) }));
+function normalizeConstraints(c: ConstraintInput): { id: string; field?: string; allowMultiple: boolean }[] {
+  if (Array.isArray(c)) {
+    return c.map((x) => ({ ...x, allowMultiple: x.allowMultiple === true }));
+  }
+  return Object.entries(c).map(([id, field]) => ({
+    id,
+    ...(field && { field }),
+    allowMultiple: false,
+  }));
 }
 
 export async function create(data: CreateData) {
@@ -53,7 +59,7 @@ export async function update(id: string, data: UpdateData) {
     if (constraints.length === 0) return { success: false as const, reason: "constraints_empty" as const };
     payload.constraints = constraints;
   }
-  const concurso = await ConcursoModel.findByIdAndUpdate(id, { $set: payload }, { new: true, runValidators: true });
+  const concurso = await ConcursoModel.findByIdAndUpdate(id, { $set: payload }, { returnDocument: "after", runValidators: true });
   if (!concurso) return { success: false as const, reason: "not_found" as const };
   return { success: true as const, concurso: mapConcursoToResponse(concurso.toObject()) };
 }
