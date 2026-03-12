@@ -50,8 +50,14 @@ function sanitizePayload(payload: InscripcionConfirmPayload): InscripcionConfirm
 }
 
 export async function sendInscripcionConfirm(to: string, payload: InscripcionConfirmPayload) {
-  if (!to?.trim()) return;
-  if (!isPayloadValid(payload)) return;
+  if (!to?.trim()) {
+    logger.warn("sendInscripcionConfirm skipped: empty correo", { module: "email", to });
+    return;
+  }
+  if (!isPayloadValid(payload)) {
+    logger.warn("sendInscripcionConfirm skipped: invalid payload", { module: "email", payload });
+    return;
+  }
 
   const subject = `Inscripcion confirmada - ${payload.concurso}`;
   const sanitized = sanitizePayload(payload);
@@ -64,6 +70,7 @@ export async function sendInscripcionConfirm(to: string, payload: InscripcionCon
       subject,
       html,
     });
+    logger.info("sendInscripcionConfirm sent", { module: "email", to: to.trim(), subject });
   } catch (err) {
     logger.error("sendInscripcionConfirm failed", { module: "email", error: err });
     throw err;
