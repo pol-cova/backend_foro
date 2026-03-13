@@ -10,7 +10,7 @@ type ConstraintInput = CreateData["constraints"];
 
 function normalizeConstraints(c: ConstraintInput): { id: string; field?: string; fields?: string[] }[] {
   if (Array.isArray(c)) {
-    return c.map((x) => ({ id: x.id, ...(x.field && { field }), ...(x.fields && { fields: x.fields }) }));
+    return c.map((x) => ({ id: x.id, ...(x.field && { field: x.field }), ...(x.fields && { fields: x.fields }) }));
   }
   return Object.entries(c).map(([id, field]) => ({
     id,
@@ -25,6 +25,7 @@ export async function create(data: CreateData) {
   const concurso = await ConcursoModel.create({
     nombre: data.nombre,
     cupo: data.cupo,
+    sharedFields: data.sharedFields ?? [],
     constraints,
     niveles: data.niveles,
     participantes: [],
@@ -50,6 +51,7 @@ export async function update(id: string, data: UpdateData) {
   const payload: Record<string, unknown> = {};
   if (data.nombre !== undefined) payload.nombre = data.nombre;
   if (data.cupo !== undefined) payload.cupo = data.cupo;
+  if (data.sharedFields !== undefined) payload.sharedFields = data.sharedFields;
   if (data.allowMultiple !== undefined) payload.allowMultiple = data.allowMultiple;
   if (data.niveles !== undefined) {
     if (data.niveles.length === 0) return { success: false as const, reason: "niveles_empty" as const };

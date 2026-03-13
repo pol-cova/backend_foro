@@ -20,6 +20,7 @@ interface MongooseConcurso {
   _id?: unknown;
   nombre: string;
   cupo: number;
+  sharedFields?: string[];
   constraints: ConcursoOut["constraints"];
   niveles: string[];
   participantes?: MongooseParticipante[];
@@ -56,6 +57,7 @@ export function mapConcursoToResponse(raw: MongooseConcurso): ConcursoOut {
     _id: String(raw._id ?? ""),
     nombre: raw.nombre,
     cupo: raw.cupo,
+    sharedFields: raw.sharedFields ?? [],
     constraints: raw.constraints,
     niveles: raw.niveles,
     participantes,

@@ -65,7 +65,7 @@ export const participantes = new Elysia({ prefix: "/:id/participantes" })
         set.status = status;
         return message;
       }
-      if (result.concursoNombre && result.totalParticipantes !== undefined) {
+      if (result.concursoNombre) {
         sendInscripcionConfirm(result.participante.correo, {
           nombre: result.participante.nombre,
           concurso: result.concursoNombre,

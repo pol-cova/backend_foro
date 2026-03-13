@@ -28,6 +28,7 @@ export const ConcursoSchema = {
   createBody: t.Object({
     nombre: t.String(),
     cupo: t.Number(),
+    sharedFields: t.Optional(t.Array(t.String())),
     constraints: constraintInput,
     niveles: t.Array(t.String()),
     allowMultiple: t.Optional(t.Boolean()),
@@ -35,6 +36,7 @@ export const ConcursoSchema = {
   updateBody: t.Object({
     nombre: t.Optional(t.String()),
     cupo: t.Optional(t.Number()),
+    sharedFields: t.Optional(t.Array(t.String())),
     constraints: t.Optional(constraintInput),
     niveles: t.Optional(t.Array(t.String())),
     allowMultiple: t.Optional(t.Boolean()),
@@ -43,6 +45,7 @@ export const ConcursoSchema = {
     _id: t.String(),
     nombre: t.String(),
     cupo: t.Number(),
+    sharedFields: t.Optional(t.Array(t.String())),
     constraints: t.Array(constraintConfig),
     niveles: t.Array(t.String()),
     participantes: t.Array(participanteResponse),
@@ -55,6 +58,7 @@ export const ConcursoSchema = {
       _id: t.String(),
       nombre: t.String(),
       cupo: t.Number(),
+      sharedFields: t.Optional(t.Array(t.String())),
       constraints: t.Array(constraintConfig),
       niveles: t.Array(t.String()),
       participantes: t.Array(participanteResponse),

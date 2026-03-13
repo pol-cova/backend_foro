@@ -49,7 +49,9 @@ export async function addParticipante(concursoId: string, data: RegisterData) {
   if (!concurso.niveles.includes(data.nivel)) return { success: false as const, reason: "nivel_no_permitido" as const };
 
   const campos: Record<string, string> = data.campos ?? {};
-  const requiredFields = getRequiredFields(constraint);
+  const shared = concurso.sharedFields ?? [];
+  const tipoSpecific = getRequiredFields(constraint);
+  const requiredFields = [...shared, ...tipoSpecific];
   for (const fieldName of requiredFields) {
     const resolved = resolveCampo(campos, fieldName);
     if ("missing" in resolved) return { success: false as const, reason: "campo_requerido" as const };

@@ -23,6 +23,7 @@ export interface Concurso {
   _id?: mongoose.Types.ObjectId;
   nombre: string;
   cupo: number;
+  sharedFields?: string[];
   constraints: ConstraintConfig[];
   niveles: string[];
   participantes: Participante[];
@@ -59,6 +60,7 @@ const concursoSchema = new mongoose.Schema<Concurso>(
   {
     nombre: { type: String, required: true },
     cupo: { type: Number, required: true },
+    sharedFields: { type: [String], default: [] },
     constraints: { type: [constraintSchema], required: true },
     niveles: { type: [String], required: true },
     participantes: { type: [participanteSchema], default: [] },
