@@ -23,6 +23,7 @@ interface MongooseConcurso {
   constraints: ConcursoOut["constraints"];
   niveles: string[];
   participantes?: MongooseParticipante[];
+  allowMultiple?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -58,6 +59,7 @@ export function mapConcursoToResponse(raw: MongooseConcurso): ConcursoOut {
     constraints: raw.constraints,
     niveles: raw.niveles,
     participantes,
+    allowMultiple: raw.allowMultiple ?? false,
     createdAt: raw.createdAt ?? new Date(),
     updatedAt: raw.updatedAt ?? new Date(),
   };

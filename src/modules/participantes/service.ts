@@ -6,8 +6,37 @@ import type { ParticipanteSchemaTypes } from "./schema";
 
 type RegisterData = ParticipanteSchemaTypes["registerBody"];
 
+const CAMPO_ALIASES: Record<string, string[]> = {
+  proyecto: ["descripcion_proyecto"],
+  descripcion_proyecto: ["descripcion"],
+  proyecto_desc: ["descripcion_proyecto", "descripcion"],
+};
+
 function findConstraint(constraints: ConstraintConfig[], tipo: string) {
   return constraints.find((c) => c.id === tipo);
+}
+
+function resolveCampo(
+  campos: Record<string, string>,
+  fieldName: string
+): { value: string; source: string } | { missing: true } | { empty: true } {
+  const keysToTry = [fieldName, ...(CAMPO_ALIASES[fieldName] ?? [])];
+  for (const key of keysToTry) {
+    const v = campos[key];
+    if (v !== undefined) {
+      if (v.trim() === "") return { empty: true };
+      return { value: v, source: key };
+    }
+  }
+  return { missing: true };
+}
+
+function getRequiredFields(constraint: ConstraintConfig): string[] {
+  if (constraint.fields && constraint.fields.length > 0) return constraint.fields;
+  if (constraint.field && constraint.field !== "true" && constraint.field !== "false") {
+    return [constraint.field];
+  }
+  return [];
 }
 
 export async function addParticipante(concursoId: string, data: RegisterData) {
@@ -20,13 +49,17 @@ export async function addParticipante(concursoId: string, data: RegisterData) {
   if (!concurso.niveles.includes(data.nivel)) return { success: false as const, reason: "nivel_no_permitido" as const };
 
   const campos: Record<string, string> = data.campos ?? {};
-  const needsCampo = constraint.field && constraint.field !== "true" && constraint.field !== "false";
-  if (needsCampo && !campos[constraint.field!]) return { success: false as const, reason: "campo_requerido" as const };
+  const requiredFields = getRequiredFields(constraint);
+  for (const fieldName of requiredFields) {
+    const resolved = resolveCampo(campos, fieldName);
+    if ("missing" in resolved) return { success: false as const, reason: "campo_requerido" as const };
+    if ("empty" in resolved) return { success: false as const, reason: "campo_vacio" as const };
+  }
 
   const { participantes, cupo } = concurso;
   if (participantes.length >= cupo) return { success: false as const, reason: "cupo_exceeded" as const };
 
-  const allowMultiple = constraint.allowMultiple === true;
+  const allowMultiple = concurso.allowMultiple === true;
   if (!allowMultiple) {
     const alreadyInSameTipo = participantes.some(
       (p) => String(p.codigo) === String(data.codigo) && String(p.tipo) === String(data.tipo)
@@ -38,6 +71,12 @@ export async function addParticipante(concursoId: string, data: RegisterData) {
   if (!estudianteRes.success) return { success: false as const, reason: "estudiante_no_encontrado" as const };
   const e = estudianteRes.estudiante;
 
+  const camposOut: Record<string, string> = {};
+  for (const fieldName of requiredFields) {
+    const resolved = resolveCampo(campos, fieldName);
+    if ("value" in resolved) camposOut[fieldName] = resolved.value;
+  }
+
   const participante: Participante = {
     tipo: data.tipo,
     codigo: e.codigo,
@@ -47,7 +86,7 @@ export async function addParticipante(concursoId: string, data: RegisterData) {
     correo: e.correo,
     escuela: e.escuela,
     nivel: data.nivel,
-    campos: needsCampo && constraint.field ? { [constraint.field]: campos[constraint.field] } : {},
+    campos: camposOut,
   };
 
   const updated = await ConcursoModel.findByIdAndUpdate(

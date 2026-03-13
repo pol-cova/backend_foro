@@ -8,14 +8,13 @@ type UpdateData = ConcursoTypes["updateBody"];
 
 type ConstraintInput = CreateData["constraints"];
 
-function normalizeConstraints(c: ConstraintInput): { id: string; field?: string; allowMultiple: boolean }[] {
+function normalizeConstraints(c: ConstraintInput): { id: string; field?: string; fields?: string[] }[] {
   if (Array.isArray(c)) {
-    return c.map((x) => ({ ...x, allowMultiple: x.allowMultiple === true }));
+    return c.map((x) => ({ id: x.id, ...(x.field && { field }), ...(x.fields && { fields: x.fields }) }));
   }
   return Object.entries(c).map(([id, field]) => ({
     id,
     ...(field && { field }),
-    allowMultiple: false,
   }));
 }
 
@@ -29,6 +28,7 @@ export async function create(data: CreateData) {
     constraints,
     niveles: data.niveles,
     participantes: [],
+    allowMultiple: data.allowMultiple ?? false,
   });
   return { success: true as const, concurso: mapConcursoToResponse(concurso.toObject()) };
 }
@@ -50,6 +50,7 @@ export async function update(id: string, data: UpdateData) {
   const payload: Record<string, unknown> = {};
   if (data.nombre !== undefined) payload.nombre = data.nombre;
   if (data.cupo !== undefined) payload.cupo = data.cupo;
+  if (data.allowMultiple !== undefined) payload.allowMultiple = data.allowMultiple;
   if (data.niveles !== undefined) {
     if (data.niveles.length === 0) return { success: false as const, reason: "niveles_empty" as const };
     payload.niveles = data.niveles;

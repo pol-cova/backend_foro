@@ -3,7 +3,7 @@ import { t, type UnwrapSchema } from "elysia";
 const constraintConfig = t.Object({
   id: t.String(),
   field: t.Optional(t.String()),
-  allowMultiple: t.Optional(t.Boolean()),
+  fields: t.Optional(t.Array(t.String())),
 });
 
 const constraintInput = t.Union([
@@ -30,12 +30,14 @@ export const ConcursoSchema = {
     cupo: t.Number(),
     constraints: constraintInput,
     niveles: t.Array(t.String()),
+    allowMultiple: t.Optional(t.Boolean()),
   }),
   updateBody: t.Object({
     nombre: t.Optional(t.String()),
     cupo: t.Optional(t.Number()),
     constraints: t.Optional(constraintInput),
     niveles: t.Optional(t.Array(t.String())),
+    allowMultiple: t.Optional(t.Boolean()),
   }),
   concursoResponse: t.Object({
     _id: t.String(),
@@ -44,6 +46,7 @@ export const ConcursoSchema = {
     constraints: t.Array(constraintConfig),
     niveles: t.Array(t.String()),
     participantes: t.Array(participanteResponse),
+    allowMultiple: t.Optional(t.Boolean()),
     createdAt: t.Date(),
     updatedAt: t.Date(),
   }),
@@ -55,6 +58,7 @@ export const ConcursoSchema = {
       constraints: t.Array(constraintConfig),
       niveles: t.Array(t.String()),
       participantes: t.Array(participanteResponse),
+      allowMultiple: t.Optional(t.Boolean()),
       createdAt: t.Date(),
       updatedAt: t.Date(),
     })

@@ -6,7 +6,15 @@ import { sendInscripcionConfirm } from "../email/service";
 import { cookieSchema, sharedAuthResponses } from "../auth/common";
 import { AuthSchema } from "../auth/schema";
 
-type AddParticipanteReason = "not_found" | "estudiante_no_encontrado" | "cupo_exceeded" | "already_registered" | "tipo_no_permitido" | "nivel_no_permitido" | "campo_requerido";
+type AddParticipanteReason =
+  | "not_found"
+  | "estudiante_no_encontrado"
+  | "cupo_exceeded"
+  | "already_registered"
+  | "tipo_no_permitido"
+  | "nivel_no_permitido"
+  | "campo_requerido"
+  | "campo_vacio";
 
 const addParticipanteErrorMap: Record<
   AddParticipanteReason,
@@ -19,6 +27,7 @@ const addParticipanteErrorMap: Record<
   tipo_no_permitido: { status: 400, message: ParticipanteSchema.tipoNoPermitido.const },
   nivel_no_permitido: { status: 400, message: ParticipanteSchema.nivelNoPermitido.const },
   campo_requerido: { status: 400, message: ParticipanteSchema.campoRequerido.const },
+  campo_vacio: { status: 400, message: ParticipanteSchema.campoVacio.const },
 };
 
 export const participantes = new Elysia({ prefix: "/:id/participantes" })
@@ -80,6 +89,7 @@ export const participantes = new Elysia({ prefix: "/:id/participantes" })
           ParticipanteSchema.tipoNoPermitido,
           ParticipanteSchema.nivelNoPermitido,
           ParticipanteSchema.campoRequerido,
+          ParticipanteSchema.campoVacio,
         ]),
         404: t.Union([ParticipanteSchema.concursoNotFound, ParticipanteSchema.estudianteNoEncontrado]),
         409: t.Union([ParticipanteSchema.cupoExceeded, ParticipanteSchema.alreadyRegistered]),

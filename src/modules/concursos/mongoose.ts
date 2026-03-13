@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 export interface ConstraintConfig {
   id: string;
   field?: string;
-  allowMultiple?: boolean;
+  fields?: string[];
 }
 
 export interface Participante {
@@ -26,12 +26,17 @@ export interface Concurso {
   constraints: ConstraintConfig[];
   niveles: string[];
   participantes: Participante[];
+  allowMultiple?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
 }
 
 const constraintSchema = new mongoose.Schema<ConstraintConfig>(
-  { id: { type: String, required: true }, field: String, allowMultiple: { type: Boolean, default: false } },
+  {
+    id: { type: String, required: true },
+    field: String,
+    fields: [String],
+  },
   { _id: false }
 );
 
@@ -57,6 +62,7 @@ const concursoSchema = new mongoose.Schema<Concurso>(
     constraints: { type: [constraintSchema], required: true },
     niveles: { type: [String], required: true },
     participantes: { type: [participanteSchema], default: [] },
+    allowMultiple: { type: Boolean, default: false },
   },
   { timestamps: true }
 );
