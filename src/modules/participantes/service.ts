@@ -98,7 +98,7 @@ export async function addParticipante(concursoId: string, data: RegisterData) {
   const added = parts[parts.length - 1];
   if (!added) return { success: false as const, reason: "not_found" as const };
 
-  const camposOut = added.campos instanceof Map ? Object.fromEntries(added.campos) : (added.campos ?? {});
+  const camposFromDb = added.campos instanceof Map ? Object.fromEntries(added.campos) : (added.campos ?? {});
   return {
     success: true as const,
     participante: {
@@ -111,7 +111,7 @@ export async function addParticipante(concursoId: string, data: RegisterData) {
       correo: added.correo,
       escuela: added.escuela,
       nivel: added.nivel,
-      campos: camposOut as Record<string, string>,
+      campos: camposFromDb as Record<string, string>,
     },
     concursoNombre: updated?.nombre ?? "",
     totalParticipantes: parts.length,
