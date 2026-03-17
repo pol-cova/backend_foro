@@ -70,6 +70,20 @@ export async function getEstudianteByCodigo(
   codigoEst: string,
   retried = false
 ): Promise<{ success: true; estudiante: EstudiantePrefill } | { success: false; reason: "not_found" | "api_error" }> {
+  if (config.testing) {
+    return {
+      success: true,
+      estudiante: {
+        codigo: codigoEst,
+        nombre: `Load Test ${codigoEst}`,
+        carrera: "LICENCIATURA",
+        semestre: 5,
+        correo: `loadtest-${codigoEst}@test.local`,
+        escuela: ESCUELA,
+      },
+    };
+  }
+
   const token = await ensureToken();
   const res = await fetch(`${config.sispa.url}/api/perfil`, {
     method: "POST",

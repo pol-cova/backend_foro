@@ -5,7 +5,9 @@
     "test": "bun test",
     "dev": "bun run --watch src/server.ts",
     "seed": "bun run seeds/auth.ts",
-    "email": "email dev --dir src/modules/email"
+    "email": "email dev --dir src/modules/email",
+    "load:health": "k6 run k6/health.js",
+    "load:participantes": "k6 run k6/participantes.js"
   },
   "dependencies": {
     "@elysiajs/cors": "^1.4.1",
@@ -16,6 +18,7 @@
     "@types/nodemailer": "^7.0.11",
     "dotenv": "^17.3.1",
     "elysia": "^1.4.27",
+    "elysia-rate-limit": "^4.5.1",
     "mongoose": "^9.2.3",
     "nodemailer": "^8.0.1",
     "react": "^19.2.4",

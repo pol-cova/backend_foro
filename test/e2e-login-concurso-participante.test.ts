@@ -87,6 +87,7 @@ describe("e2e auth + concursos + participantes", () => {
           codigo: TEST_ESTUDIANTE_CODIGO,
           tipo: "modalidad_individual",
           nivel: "N/A",
+          semestre: 5,
           campos: {
             carrera_o_semestre: "LICENCIATURA EN TECNOLOGIAS DE LA INFORMACION",
             correo: "josefernando10a.c@gmail.com",

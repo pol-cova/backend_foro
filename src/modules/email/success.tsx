@@ -9,12 +9,25 @@ export interface SuccessEmailProps {
   totalParticipantes: number;
 }
 
+const TIPO_PREFIXES = /^(modalidad_|tipo_|formato_)/i;
+
 function labelFromKey(key: string): string {
   return key
     .replace(/([A-Z])/g, " $1")
     .replace(/^./, (s) => s.toUpperCase())
     .replace(/_/g, " ")
     .trim();
+}
+
+function toHumanReadable(value: string): string {
+  const trimmed = value?.trim() ?? "";
+  if (!trimmed) return "";
+  const withoutPrefix = trimmed.replace(TIPO_PREFIXES, "");
+  return withoutPrefix
+    .split(/_|\s+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
 }
 
 function FieldRow({ label, value }: { label: string; value: string }) {
@@ -34,8 +47,8 @@ export default function SuccessEmail({ nombre, concurso, tipo, nivel, campos, to
   const plural = totalParticipantes !== 1;
   const summaryRows: { label: string; value: string }[] = [];
 
-  if (tipo?.trim()) summaryRows.push({ label: "Participacion", value: tipo.trim() });
-  if (nivel?.trim()) summaryRows.push({ label: "Nivel", value: nivel.trim() });
+  if (tipo?.trim()) summaryRows.push({ label: "Participacion", value: toHumanReadable(tipo) });
+  if (nivel?.trim()) summaryRows.push({ label: "Nivel", value: toHumanReadable(nivel) });
   for (const [key, value] of Object.entries(campos ?? {})) {
     if (value != null && String(value).trim()) {
       summaryRows.push({ label: labelFromKey(key), value: String(value).trim() });

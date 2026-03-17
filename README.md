@@ -86,3 +86,7 @@ bun dev
 ```
 
 Open http://localhost:3145/openapi in your browser to view the API documentation (requires `PORT=3145` in `.env`).
+
+## Load Testing (K6)
+
+See [k6/README.md](k6/README.md). Run `bun run load:health` or `bun run load:participantes` against a server started with `TESTING=true`. Requires [k6](https://k6.io/docs/getting-started/installation/) installed.

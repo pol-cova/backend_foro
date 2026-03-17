@@ -49,3 +49,6 @@ package-lock.json
 
 # references
 references/
+
+# k6
+k6/

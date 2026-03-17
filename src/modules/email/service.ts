@@ -14,6 +14,18 @@ const transporter = nodemailer.createTransport({
       : undefined,
 });
 
+type MailCaptureEntry = { to: string; payload: InscripcionConfirmPayload };
+
+let mailCapture: ((entry: MailCaptureEntry) => void) | null = null;
+
+export function setMailCapture(cb: ((entry: MailCaptureEntry) => void) | null) {
+  mailCapture = cb;
+}
+
+export function clearMailCapture() {
+  mailCapture = null;
+}
+
 export interface InscripcionConfirmPayload {
   nombre: string;
   concurso: string;
@@ -56,6 +68,11 @@ export async function sendInscripcionConfirm(to: string, payload: InscripcionCon
   }
   if (!isPayloadValid(payload)) {
     logger.warn("sendInscripcionConfirm skipped: invalid payload", { module: "email", payload });
+    return;
+  }
+
+  if (config.testing) {
+    if (mailCapture) mailCapture({ to: to.trim(), payload: sanitizePayload(payload) });
     return;
   }
 

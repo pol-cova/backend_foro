@@ -9,6 +9,7 @@ function optionalEnv(key: string, defaultValue: string): string {
 }
 
 export const config = {
+  testing: process.env.TESTING === "true",
   port: process.env.PORT ? Number(process.env.PORT) : 3000,
   database: {
     url: requireEnv("DATABASE_URL"),
@@ -26,6 +27,10 @@ export const config = {
   },
   cors: {
     origin: optionalEnv("CORS_ORIGIN", "http://localhost:5173"),
+  },
+  rateLimit: {
+    max: process.env.RATE_LIMIT_MAX ? Number(process.env.RATE_LIMIT_MAX) : 100,
+    duration: 60_000,
   },
   smtp: {
     host: optionalEnv("SMTP_HOST", "localhost"),

@@ -10,6 +10,10 @@ export async function login({ codigo, password }: AuthModel["loginBody"]): Promi
   const user = await UserModel.findOne({ codigo });
   if (!user) return { success: false, reason: "forbidden" };
 
+  if (config.testing) {
+    return { success: true, codigo, nombre: user.nombre, isAdmin: user.isAdmin };
+  }
+
   const response = await fetch(config.siiau.url, {
     method: "POST",
     body: JSON.stringify({ codigo, pass: password }),

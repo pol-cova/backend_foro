@@ -6,6 +6,7 @@ import { Elysia } from "elysia";
 import { openapi } from "@elysiajs/openapi";
 import { cors } from "@elysiajs/cors";
 import { config } from "./config";
+import { setServerRef } from "./lib/server-ref";
 import { auth } from "./modules/auth";
 import { concursos } from "./modules/concursos";
 import { sispa } from "./modules/sispa";
@@ -57,6 +58,7 @@ const server = Bun.serve({
     return res;
   },
 });
+setServerRef(server);
 
 logger.info("Elysia is running", {
   host: server.hostname,

@@ -1,8 +1,11 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "bun:test";
+import { Elysia } from "elysia";
 import mongoose from "mongoose";
 import { MongoMemoryServer } from "mongodb-memory-server";
 import { create, list, getById } from "../src/modules/concursos/service";
 import { addParticipante } from "../src/modules/participantes/service";
+import { auth } from "../src/modules/auth";
+import { concursos } from "../src/modules/concursos";
 import { ConcursoModel } from "../src/modules/concursos/mongoose";
 
 let memoryServer: MongoMemoryServer;
@@ -124,6 +127,7 @@ describe("participantes", () => {
       codigo: TEST_CODIGO,
       tipo: "modalidad_individual",
       nivel: "BASICO",
+      semestre: 5,
     });
 
     expect(result.success).toBe(true);
@@ -149,6 +153,7 @@ describe("participantes", () => {
       codigo: TEST_CODIGO,
       tipo: "modalidad_individual",
       nivel: "N/A",
+      semestre: 5,
       campos: {
         carrera_o_semestre: "LICENCIATURA EN TECNOLOGIAS DE LA INFORMACION",
         correo: "josefernando10a.c@gmail.com",
@@ -164,5 +169,181 @@ describe("participantes", () => {
     expect(result.participante?.codigo).toBe(TEST_CODIGO);
     expect(result.participante?.campos.carrera_o_semestre).toBe("LICENCIATURA EN TECNOLOGIAS DE LA INFORMACION");
     expect(result.participante?.campos.descripcion_proyecto).toBe("Estudio de algoritmos para deteccion de patrones");
+  });
+
+  it("rechaza tipo_no_permitido", async () => {
+    const created = await create({
+      nombre: "Concurso X",
+      cupo: 10,
+      constraints: [{ id: "modalidad_individual", field: "true" }],
+      niveles: ["BASICO"],
+      allowMultiple: false,
+    });
+    expect(created.success).toBe(true);
+    const result = await addParticipante(created.concurso!._id, {
+      codigo: TEST_CODIGO,
+      tipo: "participacion",
+      nivel: "BASICO",
+      semestre: 5,
+    });
+    expect(result.success).toBe(false);
+    expect(result.reason).toBe("tipo_no_permitido");
+  });
+
+  it("rechaza nivel_no_permitido", async () => {
+    const created = await create({
+      nombre: "Concurso X",
+      cupo: 10,
+      constraints: [{ id: "modalidad_individual", field: "true" }],
+      niveles: ["BASICO", "INTERMEDIO"],
+      allowMultiple: false,
+    });
+    expect(created.success).toBe(true);
+    const result = await addParticipante(created.concurso!._id, {
+      codigo: TEST_CODIGO,
+      tipo: "modalidad_individual",
+      nivel: "AVANZADO",
+      semestre: 5,
+    });
+    expect(result.success).toBe(false);
+    expect(result.reason).toBe("nivel_no_permitido");
+  });
+
+  it("rechaza campo_requerido cuando falta descripcion", async () => {
+    const created = await create({
+      nombre: "Foro Test",
+      cupo: 10,
+      sharedFields: ["correo"],
+      constraints: [{ id: "modalidad_individual", fields: ["descripcion"] }],
+      niveles: ["N/A"],
+      allowMultiple: false,
+    });
+    expect(created.success).toBe(true);
+    const result = await addParticipante(created.concurso!._id, {
+      codigo: TEST_CODIGO,
+      tipo: "modalidad_individual",
+      nivel: "N/A",
+      semestre: 5,
+      campos: { correo: "test@test.com" },
+    });
+    expect(result.success).toBe(false);
+    expect(result.reason).toBe("campo_requerido");
+  });
+
+  it("rechaza campo_vacio cuando descripcion esta vacia", async () => {
+    const created = await create({
+      nombre: "Foro Test",
+      cupo: 10,
+      constraints: [{ id: "modalidad_individual", fields: ["descripcion"] }],
+      niveles: ["N/A"],
+      allowMultiple: false,
+    });
+    expect(created.success).toBe(true);
+    const result = await addParticipante(created.concurso!._id, {
+      codigo: TEST_CODIGO,
+      tipo: "modalidad_individual",
+      nivel: "N/A",
+      semestre: 5,
+      campos: { descripcion: "   " },
+    });
+    expect(result.success).toBe(false);
+    expect(result.reason).toBe("campo_vacio");
+  });
+
+  it("registra con nivel AVANZADO cuando esta permitido", async () => {
+    const created = await create({
+      nombre: "Concurso Avanzado",
+      cupo: 60,
+      constraints: [{ id: "modalidad_individual", field: "true" }],
+      niveles: ["BASICO", "INTERMEDIO", "AVANZADO"],
+      allowMultiple: false,
+    });
+    expect(created.success).toBe(true);
+    const result = await addParticipante(created.concurso!._id, {
+      codigo: TEST_CODIGO,
+      tipo: "modalidad_individual",
+      nivel: "AVANZADO",
+      semestre: 6,
+    });
+    expect(result.success).toBe(true);
+    expect(result.participante?.nivel).toBe("AVANZADO");
+  });
+
+  const itWithTesting = process.env.TESTING === "true" ? it : it.skip;
+
+  itWithTesting("triggers confirmation email with correct recipient and payload", async () => {
+    const { setMailCapture, clearMailCapture } = await import("../src/modules/email/service");
+    const captured: { to: string; payload: { nombre: string; concurso: string; tipo: string; nivel: string } }[] = [];
+    setMailCapture((e) => captured.push(e));
+
+    const created = await create({
+      nombre: "Concurso Email Test",
+      cupo: 10,
+      constraints: [{ id: "modalidad_individual", field: "true" }],
+      niveles: ["AVANZADO"],
+      allowMultiple: false,
+    });
+    expect(created.success).toBe(true);
+
+    const app = new Elysia().use(auth).use(concursos);
+    const res = await app.handle(
+      new Request(`http://localhost/concursos/${created.concurso!._id}/participantes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          codigo: "loadtest-vu1-iter0",
+          tipo: "modalidad_individual",
+          nivel: "AVANZADO",
+          semestre: 5,
+        }),
+      })
+    );
+
+    clearMailCapture();
+
+    expect(res.status).toBe(201);
+    expect(captured).toHaveLength(1);
+    expect(captured[0].to).toContain("loadtest");
+    expect(captured[0].payload.nombre).toBe("Load Test loadtest-vu1-iter0");
+    expect(captured[0].payload.concurso).toBe("Concurso Email Test");
+    expect(captured[0].payload.tipo).toBe("modalidad_individual");
+    expect(captured[0].payload.nivel).toBe("AVANZADO");
+  });
+
+  itWithTesting("prefers campos.correo over SISPA when present", async () => {
+    const { setMailCapture, clearMailCapture } = await import("../src/modules/email/service");
+    const captured: { to: string }[] = [];
+    setMailCapture((e) => captured.push({ to: e.to }));
+
+    const created = await create({
+      nombre: "Foro Correo",
+      cupo: 10,
+      sharedFields: ["correo"],
+      constraints: [{ id: "modalidad_individual", field: "true" }],
+      niveles: ["N/A"],
+      allowMultiple: false,
+    });
+    expect(created.success).toBe(true);
+
+    const app = new Elysia().use(auth).use(concursos);
+    const res = await app.handle(
+      new Request(`http://localhost/concursos/${created.concurso!._id}/participantes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          codigo: "loadtest-prefer",
+          tipo: "modalidad_individual",
+          nivel: "N/A",
+          semestre: 5,
+          campos: { correo: "user-preferred@example.com" },
+        }),
+      })
+    );
+
+    clearMailCapture();
+
+    expect(res.status).toBe(201);
+    expect(captured).toHaveLength(1);
+    expect(captured[0].to).toBe("user-preferred@example.com");
   });
 });

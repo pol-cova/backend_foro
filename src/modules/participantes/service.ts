@@ -2,9 +2,21 @@ import mongoose from "mongoose";
 import { ConcursoModel, type ConstraintConfig, type Participante } from "../concursos/mongoose";
 import { mapParticipante } from "../concursos/mappers";
 import { getEstudianteByCodigo } from "../sispa/service";
-import type { ParticipanteSchemaTypes } from "./schema";
+import { MAX_CAMPOS_KEYS, type ParticipanteSchemaTypes } from "./schema";
 
 type RegisterData = ParticipanteSchemaTypes["registerBody"];
+
+function normalizeInput(data: RegisterData): RegisterData {
+  const codigo = String(data.codigo ?? "").trim();
+  const tipo = String(data.tipo ?? "").trim();
+  const nivel = String(data.nivel ?? "").trim();
+  const semestre = typeof data.semestre === "number" ? data.semestre : Number(data.semestre) || 1;
+  const campos: Record<string, string> = {};
+  for (const [k, v] of Object.entries(data.campos ?? {})) {
+    if (typeof v === "string") campos[k] = v.trim();
+  }
+  return { codigo, tipo, nivel, semestre, campos };
+}
 
 const CAMPO_ALIASES: Record<string, string[]> = {
   proyecto: ["descripcion_proyecto"],
@@ -40,15 +52,24 @@ function getRequiredFields(constraint: ConstraintConfig): string[] {
 }
 
 export async function addParticipante(concursoId: string, data: RegisterData) {
+  const normalized = normalizeInput(data);
+  if (!normalized.codigo) return { success: false as const, reason: "campo_vacio" as const };
+  if (Object.keys(normalized.campos ?? {}).length > MAX_CAMPOS_KEYS) {
+    return { success: false as const, reason: "campo_excess" as const };
+  }
+
   if (!mongoose.isValidObjectId(concursoId)) return { success: false as const, reason: "not_found" as const };
-  const concurso = await ConcursoModel.findById(concursoId);
+
+  const concurso = await ConcursoModel.findById(concursoId)
+    .select("constraints sharedFields niveles allowMultiple cupo nombre")
+    .lean();
   if (!concurso) return { success: false as const, reason: "not_found" as const };
 
-  const constraint = findConstraint(concurso.constraints, data.tipo);
+  const constraint = findConstraint(concurso.constraints, normalized.tipo);
   if (!constraint) return { success: false as const, reason: "tipo_no_permitido" as const };
-  if (!concurso.niveles.includes(data.nivel)) return { success: false as const, reason: "nivel_no_permitido" as const };
+  if (!concurso.niveles.includes(normalized.nivel)) return { success: false as const, reason: "nivel_no_permitido" as const };
 
-  const campos: Record<string, string> = data.campos ?? {};
+  const campos: Record<string, string> = normalized.campos ?? {};
   const shared = concurso.sharedFields ?? [];
   const tipoSpecific = getRequiredFields(constraint);
   const requiredFields = [...shared, ...tipoSpecific];
@@ -58,18 +79,7 @@ export async function addParticipante(concursoId: string, data: RegisterData) {
     if ("empty" in resolved) return { success: false as const, reason: "campo_vacio" as const };
   }
 
-  const { participantes, cupo } = concurso;
-  if (participantes.length >= cupo) return { success: false as const, reason: "cupo_exceeded" as const };
-
-  const allowMultiple = concurso.allowMultiple === true;
-  if (!allowMultiple) {
-    const alreadyInSameTipo = participantes.some(
-      (p) => String(p.codigo) === String(data.codigo) && String(p.tipo) === String(data.tipo)
-    );
-    if (alreadyInSameTipo) return { success: false as const, reason: "already_registered" as const };
-  }
-
-  const estudianteRes = await getEstudianteByCodigo(data.codigo);
+  const estudianteRes = await getEstudianteByCodigo(normalized.codigo);
   if (!estudianteRes.success) return { success: false as const, reason: "estudiante_no_encontrado" as const };
   const e = estudianteRes.estudiante;
 
@@ -80,25 +90,55 @@ export async function addParticipante(concursoId: string, data: RegisterData) {
   }
 
   const participante: Participante = {
-    tipo: data.tipo,
+    tipo: normalized.tipo,
     codigo: e.codigo,
     nombre: e.nombre,
     carrera: e.carrera,
-    semestre: e.semestre,
+    semestre: normalized.semestre,
     correo: e.correo,
     escuela: e.escuela,
-    nivel: data.nivel,
+    nivel: normalized.nivel,
     campos: camposOut,
   };
 
-  const updated = await ConcursoModel.findByIdAndUpdate(
-    concursoId,
+  const allowMultiple = concurso.allowMultiple === true;
+  const filter: Record<string, unknown> = {
+    _id: new mongoose.Types.ObjectId(concursoId),
+    $expr: { $lt: [{ $size: { $ifNull: ["$participantes", []] } }, "$cupo"] },
+  };
+  if (!allowMultiple) {
+    filter["participantes"] = {
+      $not: { $elemMatch: { codigo: normalized.codigo, tipo: normalized.tipo } },
+    };
+  }
+
+  const updated = await ConcursoModel.findOneAndUpdate(
+    filter,
     { $push: { participantes: participante } },
     { returnDocument: "after" }
   );
-  const parts = updated?.participantes ?? [];
+
+  if (!updated) {
+    const fallback = await ConcursoModel.findById(concursoId)
+      .select("participantes cupo nombre")
+      .lean();
+    if (!fallback) return { success: false as const, reason: "not_found" as const };
+    if ((fallback.participantes?.length ?? 0) >= fallback.cupo) {
+      return { success: false as const, reason: "cupo_exceeded" as const };
+    }
+    if (!allowMultiple) {
+      const exists = (fallback.participantes ?? []).some(
+        (p) => String(p.codigo) === String(normalized.codigo) && String(p.tipo) === String(normalized.tipo)
+      );
+      if (exists) return { success: false as const, reason: "already_registered" as const };
+    }
+    return { success: false as const, reason: "cupo_exceeded" as const };
+  }
+
+  const parts = updated.participantes ?? [];
   const added = parts[parts.length - 1];
   if (!added) return { success: false as const, reason: "not_found" as const };
+  const totalParticipantes = parts.length;
 
   const camposFromDb = added.campos instanceof Map ? Object.fromEntries(added.campos) : (added.campos ?? {});
   return {
@@ -115,8 +155,8 @@ export async function addParticipante(concursoId: string, data: RegisterData) {
       nivel: added.nivel,
       campos: camposFromDb as Record<string, string>,
     },
-    concursoNombre: updated?.nombre ?? "",
-    totalParticipantes: parts.length,
+    concursoNombre: updated.nombre ?? "",
+    totalParticipantes,
   };
 }
 

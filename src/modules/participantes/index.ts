@@ -1,4 +1,7 @@
 import { Elysia, t } from "elysia";
+import { rateLimit } from "elysia-rate-limit";
+import { config } from "../../config";
+import { getServerRef } from "../../lib/server-ref";
 import { addParticipante, listParticipantes, removeParticipante } from "./service";
 import { ParticipanteSchema } from "./schema";
 import { logger } from "../../lib/logger";
@@ -14,7 +17,8 @@ type AddParticipanteReason =
   | "tipo_no_permitido"
   | "nivel_no_permitido"
   | "campo_requerido"
-  | "campo_vacio";
+  | "campo_vacio"
+  | "campo_excess";
 
 const addParticipanteErrorMap: Record<
   AddParticipanteReason,
@@ -28,12 +32,22 @@ const addParticipanteErrorMap: Record<
   nivel_no_permitido: { status: 400, message: ParticipanteSchema.nivelNoPermitido.const },
   campo_requerido: { status: 400, message: ParticipanteSchema.campoRequerido.const },
   campo_vacio: { status: 400, message: ParticipanteSchema.campoVacio.const },
+  campo_excess: { status: 400, message: ParticipanteSchema.payloadTooLarge.const },
 };
 
 export const participantes = new Elysia({ prefix: "/:id/participantes" })
+  .use(
+    rateLimit({
+      ...config.rateLimit,
+      skip: (req) => req.method !== "POST",
+      scoping: "scoped",
+      injectServer: () => getServerRef(),
+    } as Parameters<typeof rateLimit>[0])
+  )
   .get(
     "/",
-    async ({ params: { id }, user, set }) => {
+    async ({ params: { id }, set, ...rest }) => {
+      const user = (rest as unknown as { user: { isAdmin: boolean } }).user;
       if (!user.isAdmin) {
         set.status = 403;
         return AuthSchema.forbidden.const;
@@ -65,8 +79,9 @@ export const participantes = new Elysia({ prefix: "/:id/participantes" })
         set.status = status;
         return message;
       }
+      const mailTo = result.participante.campos?.correo?.trim() || result.participante.correo;
       if (result.concursoNombre) {
-        sendInscripcionConfirm(result.participante.correo, {
+        sendInscripcionConfirm(mailTo, {
           nombre: result.participante.nombre,
           concurso: result.concursoNombre,
           tipo: result.participante.tipo,
@@ -90,6 +105,7 @@ export const participantes = new Elysia({ prefix: "/:id/participantes" })
           ParticipanteSchema.nivelNoPermitido,
           ParticipanteSchema.campoRequerido,
           ParticipanteSchema.campoVacio,
+          ParticipanteSchema.payloadTooLarge,
         ]),
         404: t.Union([ParticipanteSchema.concursoNotFound, ParticipanteSchema.estudianteNoEncontrado]),
         409: t.Union([ParticipanteSchema.cupoExceeded, ParticipanteSchema.alreadyRegistered]),
@@ -98,7 +114,8 @@ export const participantes = new Elysia({ prefix: "/:id/participantes" })
   )
   .delete(
     "/:participacionId",
-    async ({ params: { id, participacionId }, user, set }) => {
+    async ({ params: { id, participacionId }, set, ...rest }) => {
+      const user = (rest as unknown as { user: { isAdmin: boolean } }).user;
       if (!user.isAdmin) {
         set.status = 403;
         return AuthSchema.forbidden.const;
