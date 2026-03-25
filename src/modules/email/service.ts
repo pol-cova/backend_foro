@@ -49,7 +49,7 @@ function sanitizePayload(payload: InscripcionConfirmPayload): InscripcionConfirm
   for (const [key, value] of Object.entries(campos)) {
     if (value != null && typeof value === "object") continue;
     const str = String(value ?? "").trim();
-    if (str) sanitizedCampos[key] = str;
+    if (str && str.toUpperCase() !== "N/A") sanitizedCampos[key] = str;
   }
   return {
     nombre: String(payload.nombre ?? "").trim(),
