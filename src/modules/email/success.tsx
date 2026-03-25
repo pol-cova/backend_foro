@@ -13,6 +13,7 @@ const TIPO_PREFIXES = /^(modalidad_|tipo_|formato_)/i;
 
 function labelFromKey(key: string): string {
   return key
+    .replace(/_\d+$/, "")
     .replace(/([A-Z])/g, " $1")
     .replace(/^./, (s) => s.toUpperCase())
     .replace(/_/g, " ")
@@ -103,10 +104,19 @@ export default function SuccessEmail({ nombre, concurso, tipo, nivel, campos, to
 }
 
 SuccessEmail.PreviewProps = {
-  nombre: "Paul Emanuel Contreras Covarrubias",
-  concurso: "Exposoftware",
-  tipo: "Individual",
-  nivel: "Avanzado",
-  campos: { proyecto: "Markov"},
-  totalParticipantes: 12,
+  nombre: "Paul Contreras",
+  concurso: "Concurso de Programación",
+  tipo: "modalidad_individual",
+  nivel: "Intermedio",
+  campos: {
+    institucion: "CUVALLES",
+    descripcion_proyecto: "Sistema de punto de venta",
+    nombre_1: "Paul Contreras",
+    codigo_1: "219640329",
+    correo_1: "paul@cuvalles.edu.mx",
+    tel_1: "3311234567",
+    carrera_1: "Ingeniería en Computación",
+    semestre_1: "7",
+  },
+  totalParticipantes: 5,
 } satisfies SuccessEmailProps;

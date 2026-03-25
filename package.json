@@ -5,6 +5,7 @@
     "test": "bun test",
     "dev": "bun run --watch src/server.ts",
     "seed": "bun run seeds/auth.ts",
+    "clear:participantes": "bun run scripts/clear-participantes.ts",
     "email": "email dev --dir src/modules/email",
     "load:health": "k6 run k6/health.js",
     "load:participantes": "k6 run k6/participantes.js"
