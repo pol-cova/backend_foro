@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import { ConcursoModel, type ConstraintConfig, type Participante } from "../concursos/mongoose";
 import { mapParticipante } from "../concursos/mappers";
-import { getEstudianteByCodigo } from "../sispa/service";
+import { getEstudianteByCodigo, type EstudiantePrefill } from "../sispa/service";
 import { MAX_CAMPOS_KEYS, type ParticipanteSchemaTypes } from "./schema";
 
 type RegisterData = ParticipanteSchemaTypes["registerBody"];
@@ -79,9 +79,23 @@ export async function addParticipante(concursoId: string, data: RegisterData) {
     if ("empty" in resolved) return { success: false as const, reason: "campo_vacio" as const };
   }
 
-  const estudianteRes = await getEstudianteByCodigo(normalized.codigo);
-  if (!estudianteRes.success) return { success: false as const, reason: "estudiante_no_encontrado" as const };
-  const e = estudianteRes.estudiante;
+  const isCuvalles = (campos["institucion"] ?? "").toLowerCase().includes("cuvalles");
+
+  let e: EstudiantePrefill;
+  if (isCuvalles || !campos["institucion"]) {
+    const estudianteRes = await getEstudianteByCodigo(normalized.codigo);
+    if (!estudianteRes.success) return { success: false as const, reason: "estudiante_no_encontrado" as const };
+    e = estudianteRes.estudiante;
+  } else {
+    e = {
+      codigo: normalized.codigo,
+      nombre: campos["nombre_1"] ?? normalized.codigo,
+      correo: campos["correo_1"] ?? "",
+      carrera: campos["carrera_1"] ?? "",
+      semestre: normalized.semestre,
+      escuela: campos["institucion"],
+    };
+  }
 
   const camposOut: Record<string, string> = {};
   for (const fieldName of requiredFields) {

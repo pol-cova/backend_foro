@@ -4,6 +4,7 @@
     "": {
       "name": "backend_foro",
       "dependencies": {
+        "backend_foro": ".",
         "@elysiajs/cors": "^1.4.1",
         "@elysiajs/eden": "^1.4.8",
         "@elysiajs/jwt": "^1.4.1",
@@ -279,6 +280,8 @@
     "atomically": ["atomically@2.1.1", "", { "dependencies": { "stubborn-fs": "^2.0.0", "when-exit": "^2.1.4" } }, "sha512-P4w9o2dqARji6P7MHprklbfiArZAWvo07yW7qs3pdljb3BWr12FIB7W+p0zJiuiVsUpRO0iZn1kFFcpPegg0tQ=="],
 
     "b4a": ["b4a@1.8.0", "", { "peerDependencies": { "react-native-b4a": "*" }, "optionalPeers": ["react-native-b4a"] }, "sha512-qRuSmNSkGQaHwNbM7J78Wwy+ghLEYF1zNrSeMxj4Kgw6y33O3mXcQ6Ie9fRvfU/YnxWkOchPXbaLb73TkIsfdg=="],
+
+    "backend_foro": ["backend_foro@file:", { "dependencies": { "@elysiajs/cors": "^1.4.1", "@elysiajs/eden": "^1.4.8", "@elysiajs/jwt": "^1.4.1", "@elysiajs/openapi": "^1.4.14", "@react-email/components": "^1.0.8", "@types/nodemailer": "^7.0.11", "dotenv": "^17.3.1", "elysia": "^1.4.27", "elysia-rate-limit": "^4.5.1", "mongoose": "^9.2.3", "nodemailer": "^8.0.1", "react": "^19.2.4", "react-dom": "^19.2.4" }, "devDependencies": { "@react-email/preview-server": "5.2.9", "@types/node": "^25.3.3", "@types/react": "^19.2.14", "@types/react-dom": "^19.2.3", "bun-types": "latest", "mongodb-memory-server": "^11.0.1", "react-email": "^5.2.9" } }],
 
     "balanced-match": ["balanced-match@4.0.4", "", {}, "sha512-BLrgEcRTwX2o6gGxGOCNyMvGSp35YofuYzw9h1IMTRmKqttAZZVU67bdb9Pr2vUHA8+j3i2tJfjO6C6+4myGTA=="],
 
@@ -649,6 +652,8 @@
     "@tokenizer/inflate/debug": ["debug@4.4.3", "", { "dependencies": { "ms": "^2.1.3" } }, "sha512-RGwwWnwQvkVfavKVt22FGLw+xYSdzARwm0ru6DhTVA3umU5hZc28V3kO4stgYryrTlLpuvgI9GiijltAjNbcqA=="],
 
     "accepts/mime-types": ["mime-types@2.1.35", "", { "dependencies": { "mime-db": "1.52.0" } }, "sha512-ZDY+bPm5zTTF+YpCrAU9nK0UgICYPT0QtT1NZWFv4s++TNkcgVaT0g6+4R2uI4MjQjzysHB1zxuWL50hzaeXiw=="],
+
+    "backend_foro/bun-types": ["bun-types@1.3.11", "", { "dependencies": { "@types/node": "*" } }, "sha512-1KGPpoxQWl9f6wcZh57LvrPIInQMn2TQ7jsgxqpRzg+l0QPOFvJVH7HmvHo/AiPgwXy+/Thf6Ov3EdVn1vOabg=="],
 
     "debug/ms": ["ms@2.1.2", "", {}, "sha512-sGkPx+VjMtmA6MX27oA4FBFELFCZZ4S4XqeGOXCv68tT+jb3vk/RyaKWP0PTKyWtmLSM0b+adUTEvbs1PEaH2w=="],
 
