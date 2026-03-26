@@ -13,5 +13,6 @@ COPY package.json bun.lock ./
 COPY --from=deps /app/node_modules ./node_modules
 COPY ./src ./src
 COPY ./seeds ./seeds
+COPY ./scripts ./scripts
 EXPOSE 3145
 CMD ["bun", "run", "src/server.ts"]
