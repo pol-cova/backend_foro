@@ -2,11 +2,12 @@ import SuccessEmail, { type SuccessEmailProps } from "./success";
 
 export default SuccessEmail;
 
-SuccessEmail.PreviewProps = {
+const equipoPreview: SuccessEmailProps = {
   nombre: "Gerson Del Toro",
   concurso: "Concurso de Programación",
   tipo: "modalidad_equipo",
   nivel: "Intermedio",
+  totalParticipantes: 8,
   campos: {
     institucion: "CUVALLES",
     descripcion_proyecto: "Punto de venta",
@@ -24,5 +25,6 @@ SuccessEmail.PreviewProps = {
     carrera_2: "Ingeniería en Computación",
     semestre_2: "6",
   },
-  totalParticipantes: 8,
-} satisfies SuccessEmailProps;
+};
+
+SuccessEmail.PreviewProps = equipoPreview as (typeof SuccessEmail)["PreviewProps"];

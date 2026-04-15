@@ -1,23 +1,18 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "bun:test";
 import { Elysia } from "elysia";
-import mongoose from "mongoose";
-import { MongoMemoryServer } from "mongodb-memory-server";
 import { create, list, getById } from "../src/modules/concursos/service";
 import { addParticipante } from "../src/modules/participantes/service";
 import { auth } from "../src/modules/auth";
 import { concursos } from "../src/modules/concursos";
 import { ConcursoModel } from "../src/modules/concursos/mongoose";
-
-let memoryServer: MongoMemoryServer;
+import { connectMongoMemoryReplSet, stopMongoMemoryReplSet } from "./mongo-memory-replset";
 
 beforeAll(async () => {
-  memoryServer = await MongoMemoryServer.create();
-  await mongoose.connect(memoryServer.getUri());
+  await connectMongoMemoryReplSet();
 });
 
 afterAll(async () => {
-  await mongoose.disconnect();
-  if (memoryServer) await memoryServer.stop();
+  await stopMongoMemoryReplSet();
 });
 
 beforeEach(async () => {
@@ -345,5 +340,136 @@ describe("participantes", () => {
     expect(res.status).toBe(201);
     expect(captured).toHaveLength(1);
     expect(captured[0].to).toBe("user-preferred@example.com");
+  });
+
+  it("getById incluye participantes_totales individuales y equipo", async () => {
+    const created = await create({
+      nombre: "Conteos",
+      cupo: 10,
+      constraints: [
+        { id: "modalidad_individual", field: "true" },
+        { id: "modalidad_equipo", field: "true" },
+      ],
+      niveles: ["BASICO"],
+      allowMultiple: false,
+    });
+    expect(created.success).toBe(true);
+    const id = created.concurso!._id;
+    await ConcursoModel.updateOne(
+      { _id: id },
+      {
+        $push: {
+          participantes: {
+            tipo: "modalidad_equipo",
+            codigo: "100",
+            nombre: "L",
+            carrera: "c",
+            semestre: 1,
+            correo: "e@e.com",
+            escuela: "s",
+            nivel: "BASICO",
+            campos: { codigo_1: "101", codigo_2: "102" },
+          },
+        },
+      }
+    );
+    const found = await getById(id);
+    expect(found.success).toBe(true);
+    expect(found.concurso?.participantes_totales).toBe(3);
+    expect(found.concurso?.individuales).toBe(0);
+    expect(found.concurso?.equipo).toBe(3);
+  });
+
+  it("rechaza cupo_exceeded cuando cupo en personas esta lleno", async () => {
+    const created = await create({
+      nombre: "Lleno",
+      cupo: 1,
+      constraints: [{ id: "modalidad_individual", field: "true" }],
+      niveles: ["BASICO"],
+      allowMultiple: false,
+    });
+    expect(created.success).toBe(true);
+    const id = created.concurso!._id;
+    await ConcursoModel.updateOne(
+      { _id: id },
+      {
+        $push: {
+          participantes: {
+            tipo: "modalidad_individual",
+            codigo: "prefill-1",
+            nombre: "A",
+            carrera: "c",
+            semestre: 1,
+            correo: "a@a.com",
+            escuela: "s",
+            nivel: "BASICO",
+            campos: {},
+          },
+        },
+      }
+    );
+    const result = await addParticipante(id, {
+      codigo: TEST_CODIGO,
+      tipo: "modalidad_individual",
+      nivel: "BASICO",
+      semestre: 5,
+    });
+    expect(result.success).toBe(false);
+    expect(result.reason).toBe("cupo_exceeded");
+  });
+
+  it("permite el mismo codigo en dos equipos distintos (mismo concurso)", async () => {
+    const created = await create({
+      nombre: "Multi equipo",
+      cupo: 30,
+      constraints: [{ id: "modalidad_equipo", field: "true" }],
+      niveles: ["BASICO"],
+      allowMultiple: false,
+    });
+    expect(created.success).toBe(true);
+    const id = created.concurso!._id;
+    const first = await addParticipante(id, {
+      codigo: TEST_CODIGO,
+      tipo: "modalidad_equipo",
+      nivel: "BASICO",
+      semestre: 5,
+    });
+    const second = await addParticipante(id, {
+      codigo: TEST_CODIGO,
+      tipo: "modalidad_equipo",
+      nivel: "BASICO",
+      semestre: 5,
+    });
+    expect(first.success).toBe(true);
+    expect(second.success).toBe(true);
+    const found = await getById(id);
+    expect(found.concurso?.participantes).toHaveLength(2);
+  });
+
+  it("rechaza segundo individual con el mismo codigo", async () => {
+    const created = await create({
+      nombre: "Solo individual",
+      cupo: 30,
+      constraints: [{ id: "modalidad_individual", field: "true" }],
+      niveles: ["BASICO"],
+      allowMultiple: false,
+    });
+    expect(created.success).toBe(true);
+    const id = created.concurso!._id;
+    const first = await addParticipante(id, {
+      codigo: TEST_CODIGO,
+      tipo: "modalidad_individual",
+      nivel: "BASICO",
+      semestre: 5,
+    });
+    expect(first.success).toBe(true);
+    const second = await addParticipante(id, {
+      codigo: TEST_CODIGO,
+      tipo: "modalidad_individual",
+      nivel: "BASICO",
+      semestre: 5,
+    });
+    expect(second.success).toBe(false);
+    expect(second.reason).toBe("already_registered");
   });
 });

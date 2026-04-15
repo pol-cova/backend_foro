@@ -1,10 +1,27 @@
 import mongoose from "mongoose";
 import { ConcursoModel, type ConstraintConfig, type Participante } from "../concursos/mongoose";
+import { countParticipantes, esModalidadEquipo, ocupacionPorPersonas } from "../concursos/participante-count";
 import { mapParticipante } from "../concursos/mappers";
 import { getEstudianteByCodigo, type EstudiantePrefill } from "../sispa/service";
 import { MAX_CAMPOS_KEYS, type ParticipanteSchemaTypes } from "./schema";
 
 type RegisterData = ParticipanteSchemaTypes["registerBody"];
+
+type RegisterAbortReason = "not_found" | "cupo_exceeded" | "already_registered";
+
+class RegisterAbort extends Error {
+  constructor(readonly reason: RegisterAbortReason) {
+    super(reason);
+    this.name = "RegisterAbort";
+  }
+}
+
+function isTransientTransactionError(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const h = (err as { hasErrorLabel?: (label: string) => boolean }).hasErrorLabel;
+  if (typeof h !== "function") return false;
+  return h.call(err, "TransientTransactionError") || h.call(err, "UnknownTransactionCommitResult");
+}
 
 function normalizeInput(data: RegisterData): RegisterData {
   const codigo = String(data.codigo ?? "").trim();
@@ -102,6 +119,11 @@ export async function addParticipante(concursoId: string, data: RegisterData) {
     const resolved = resolveCampo(campos, fieldName);
     if ("value" in resolved) camposOut[fieldName] = resolved.value;
   }
+  for (const [k, v] of Object.entries(normalized.campos ?? {})) {
+    if (/^codigo_\d+$/i.test(k) && typeof v === "string") {
+      camposOut[k] = v;
+    }
+  }
 
   const participante: Participante = {
     tipo: normalized.tipo,
@@ -115,62 +137,88 @@ export async function addParticipante(concursoId: string, data: RegisterData) {
     campos: camposOut,
   };
 
-  const allowMultiple = concurso.allowMultiple === true;
-  const filter: Record<string, unknown> = {
-    _id: new mongoose.Types.ObjectId(concursoId),
-    $expr: { $lt: [{ $size: { $ifNull: ["$participantes", []] } }, "$cupo"] },
-  };
-  if (!allowMultiple) {
-    filter["participantes"] = {
-      $not: { $elemMatch: { codigo: normalized.codigo, tipo: normalized.tipo } },
-    };
+  let committed:
+    | {
+        participante: {
+          _id: string;
+          tipo: string;
+          codigo: string;
+          nombre: string;
+          carrera: string;
+          semestre: number;
+          correo: string;
+          escuela: string;
+          nivel: string;
+          campos: Record<string, string>;
+        };
+        concursoNombre: string;
+        totalParticipantes: number;
+      }
+    | undefined;
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const session = await mongoose.startSession();
+    try {
+      await session.withTransaction(async () => {
+        const doc = await ConcursoModel.findById(concursoId).session(session);
+        if (!doc) throw new RegisterAbort("not_found");
+
+        const ocupacion = ocupacionPorPersonas(doc.participantes as Participante[]);
+        const nuevo = countParticipantes(participante);
+        if (ocupacion + nuevo > doc.cupo) throw new RegisterAbort("cupo_exceeded");
+
+        const allowMultiple = doc.allowMultiple === true;
+        const blockCodigoTipoDuplicate = !allowMultiple && !esModalidadEquipo(normalized.tipo);
+        if (blockCodigoTipoDuplicate) {
+          const exists = (doc.participantes ?? []).some(
+            (p) => String(p.codigo) === String(participante.codigo) && String(p.tipo) === String(normalized.tipo)
+          );
+          if (exists) throw new RegisterAbort("already_registered");
+        }
+
+        doc.participantes.push(participante);
+        await doc.save({ session });
+
+        const parts = doc.participantes ?? [];
+        const added = parts[parts.length - 1];
+        if (!added?._id) throw new RegisterAbort("not_found");
+
+        const camposFromDb = added.campos instanceof Map ? Object.fromEntries(added.campos) : (added.campos ?? {});
+        committed = {
+          participante: {
+            _id: String(added._id),
+            tipo: added.tipo,
+            codigo: added.codigo,
+            nombre: added.nombre,
+            carrera: added.carrera,
+            semestre: added.semestre,
+            correo: added.correo,
+            escuela: added.escuela,
+            nivel: added.nivel,
+            campos: camposFromDb as Record<string, string>,
+          },
+          concursoNombre: doc.nombre ?? "",
+          totalParticipantes: ocupacionPorPersonas(parts as Participante[]),
+        };
+      });
+      break;
+    } catch (err) {
+      if (err instanceof RegisterAbort) {
+        return { success: false as const, reason: err.reason };
+      }
+      if (isTransientTransactionError(err) && attempt < 2) continue;
+      throw err;
+    } finally {
+      session.endSession();
+    }
   }
 
-  const updated = await ConcursoModel.findOneAndUpdate(
-    filter,
-    { $push: { participantes: participante } },
-    { returnDocument: "after" }
-  );
-
-  if (!updated) {
-    const fallback = await ConcursoModel.findById(concursoId)
-      .select("participantes cupo nombre")
-      .lean();
-    if (!fallback) return { success: false as const, reason: "not_found" as const };
-    if ((fallback.participantes?.length ?? 0) >= fallback.cupo) {
-      return { success: false as const, reason: "cupo_exceeded" as const };
-    }
-    if (!allowMultiple) {
-      const exists = (fallback.participantes ?? []).some(
-        (p) => String(p.codigo) === String(normalized.codigo) && String(p.tipo) === String(normalized.tipo)
-      );
-      if (exists) return { success: false as const, reason: "already_registered" as const };
-    }
-    return { success: false as const, reason: "cupo_exceeded" as const };
-  }
-
-  const parts = updated.participantes ?? [];
-  const added = parts[parts.length - 1];
-  if (!added) return { success: false as const, reason: "not_found" as const };
-  const totalParticipantes = parts.length;
-
-  const camposFromDb = added.campos instanceof Map ? Object.fromEntries(added.campos) : (added.campos ?? {});
+  const out = committed!;
   return {
     success: true as const,
-    participante: {
-      _id: String(added._id),
-      tipo: added.tipo,
-      codigo: added.codigo,
-      nombre: added.nombre,
-      carrera: added.carrera,
-      semestre: added.semestre,
-      correo: added.correo,
-      escuela: added.escuela,
-      nivel: added.nivel,
-      campos: camposFromDb as Record<string, string>,
-    },
-    concursoNombre: updated.nombre ?? "",
-    totalParticipantes,
+    participante: out.participante,
+    concursoNombre: out.concursoNombre,
+    totalParticipantes: out.totalParticipantes,
   };
 }
 
