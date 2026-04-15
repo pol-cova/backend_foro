@@ -6,7 +6,7 @@ describe("concursos mappers", () => {
     it("maps plain object campos to Record", () => {
       const raw = {
         _id: "abc123",
-        tipo: "Individual",
+        tipo: "modalidad_individual",
         codigo: "123",
         nombre: "Test",
         carrera: "CS",
@@ -24,7 +24,7 @@ describe("concursos mappers", () => {
     it("converts Map campos to Record", () => {
       const raw = {
         _id: "id1",
-        tipo: "Individual",
+        tipo: "modalidad_individual",
         codigo: "123",
         nombre: "Test",
         carrera: "CS",
@@ -40,7 +40,7 @@ describe("concursos mappers", () => {
 
     it("handles missing campos", () => {
       const raw = {
-        tipo: "Individual",
+        tipo: "modalidad_individual",
         codigo: "123",
         nombre: "Test",
         carrera: "CS",
@@ -65,7 +65,7 @@ describe("concursos mappers", () => {
         participantes: [
           {
             _id: "p1",
-            tipo: "Individual",
+            tipo: "modalidad_individual",
             codigo: "123",
             nombre: "A",
             carrera: "CS",
@@ -83,6 +83,9 @@ describe("concursos mappers", () => {
       expect(result._id).toBe("conc1");
       expect(result.nombre).toBe("Expo");
       expect(result.participantes).toHaveLength(1);
+      expect(result.participantes_totales).toBe(1);
+      expect(result.individuales).toBe(1);
+      expect(result.equipo).toBe(0);
       expect(result.participantes[0].nombre).toBe("A");
       expect(result.participantes[0].campos).toEqual({ proyecto: "P" });
     });
@@ -97,6 +100,9 @@ describe("concursos mappers", () => {
         participantes: [],
       };
       const result = mapConcursoToResponse(raw);
+      expect(result.participantes_totales).toBe(0);
+      expect(result.individuales).toBe(0);
+      expect(result.equipo).toBe(0);
       expect(result.createdAt).toBeInstanceOf(Date);
       expect(result.updatedAt).toBeInstanceOf(Date);
     });

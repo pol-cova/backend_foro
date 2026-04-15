@@ -1,4 +1,6 @@
 import type { ConcursoTypes } from "./schema";
+import type { Participante } from "./mongoose";
+import { resumenParticipacionConcurso } from "./participante-count";
 
 type ConcursoOut = ConcursoTypes["concursoResponse"];
 type ParticipanteOut = ConcursoOut["participantes"][number];
@@ -53,6 +55,8 @@ export function mapParticipante(raw: MongooseParticipante): ParticipanteOut {
 
 export function mapConcursoToResponse(raw: MongooseConcurso): ConcursoOut {
   const participantes = (raw.participantes ?? []).map((p) => mapParticipante(p));
+  const rawParts = (raw.participantes ?? []) as Participante[];
+  const { participantes_totales, individuales, equipo } = resumenParticipacionConcurso(rawParts);
   return {
     _id: String(raw._id ?? ""),
     nombre: raw.nombre,
@@ -61,6 +65,9 @@ export function mapConcursoToResponse(raw: MongooseConcurso): ConcursoOut {
     constraints: raw.constraints,
     niveles: raw.niveles,
     participantes,
+    participantes_totales,
+    individuales,
+    equipo,
     allowMultiple: raw.allowMultiple ?? false,
     createdAt: raw.createdAt ?? new Date(),
     updatedAt: raw.updatedAt ?? new Date(),

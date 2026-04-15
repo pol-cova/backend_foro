@@ -1,11 +1,10 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "bun:test";
 import { Elysia } from "elysia";
-import mongoose from "mongoose";
-import { MongoMemoryServer } from "mongodb-memory-server";
 import { auth } from "../src/modules/auth";
 import { concursos } from "../src/modules/concursos";
 import { ConcursoModel } from "../src/modules/concursos/mongoose";
 import { UserModel } from "../src/modules/auth/mongoose";
+import { connectMongoMemoryReplSet, stopMongoMemoryReplSet } from "./mongo-memory-replset";
 
 const ADMIN_CODIGO = process.env.TEST_ADMIN_CODIGO ?? process.env.SISPA_CODIGO ?? "219640329";
 const ADMIN_PASSWORD = process.env.TEST_ADMIN_PASSWORD ?? process.env.SISPA_PASSWORD;
@@ -13,12 +12,10 @@ const TEST_ESTUDIANTE_CODIGO = process.env.TEST_ESTUDIANTE_CODIGO ?? "218807823"
 
 const itWithCreds = ADMIN_PASSWORD ? it : it.skip;
 
-let memoryServer: MongoMemoryServer;
 const app = new Elysia().use(auth).use(concursos);
 
 beforeAll(async () => {
-  memoryServer = await MongoMemoryServer.create();
-  await mongoose.connect(memoryServer.getUri());
+  await connectMongoMemoryReplSet();
 });
 
 beforeEach(async () => {
@@ -32,8 +29,7 @@ beforeEach(async () => {
 });
 
 afterAll(async () => {
-  await mongoose.disconnect();
-  if (memoryServer) await memoryServer.stop();
+  await stopMongoMemoryReplSet();
 });
 
 describe("e2e auth + concursos + participantes", () => {
