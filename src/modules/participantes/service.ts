@@ -7,22 +7,6 @@ import { MAX_CAMPOS_KEYS, type ParticipanteSchemaTypes } from "./schema";
 
 type RegisterData = ParticipanteSchemaTypes["registerBody"];
 
-type RegisterAbortReason = "not_found" | "cupo_exceeded" | "already_registered";
-
-class RegisterAbort extends Error {
-  constructor(readonly reason: RegisterAbortReason) {
-    super(reason);
-    this.name = "RegisterAbort";
-  }
-}
-
-function isTransientTransactionError(err: unknown): boolean {
-  if (!err || typeof err !== "object") return false;
-  const h = (err as { hasErrorLabel?: (label: string) => boolean }).hasErrorLabel;
-  if (typeof h !== "function") return false;
-  return h.call(err, "TransientTransactionError") || h.call(err, "UnknownTransactionCommitResult");
-}
-
 function normalizeInput(data: RegisterData): RegisterData {
   const codigo = String(data.codigo ?? "").trim();
   const tipo = String(data.tipo ?? "").trim();
@@ -137,88 +121,47 @@ export async function addParticipante(concursoId: string, data: RegisterData) {
     campos: camposOut,
   };
 
-  let committed:
-    | {
-        participante: {
-          _id: string;
-          tipo: string;
-          codigo: string;
-          nombre: string;
-          carrera: string;
-          semestre: number;
-          correo: string;
-          escuela: string;
-          nivel: string;
-          campos: Record<string, string>;
-        };
-        concursoNombre: string;
-        totalParticipantes: number;
-      }
-    | undefined;
+  const doc = await ConcursoModel.findById(concursoId);
+  if (!doc) return { success: false as const, reason: "not_found" as const };
 
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const session = await mongoose.startSession();
-    try {
-      await session.withTransaction(async () => {
-        const doc = await ConcursoModel.findById(concursoId).session(session);
-        if (!doc) throw new RegisterAbort("not_found");
+  const ocupacion = ocupacionPorPersonas(doc.participantes as Participante[]);
+  const nuevo = countParticipantes(participante);
+  if (ocupacion + nuevo > doc.cupo) return { success: false as const, reason: "cupo_exceeded" as const };
 
-        const ocupacion = ocupacionPorPersonas(doc.participantes as Participante[]);
-        const nuevo = countParticipantes(participante);
-        if (ocupacion + nuevo > doc.cupo) throw new RegisterAbort("cupo_exceeded");
-
-        const allowMultiple = doc.allowMultiple === true;
-        const blockCodigoTipoDuplicate = !allowMultiple && !esModalidadEquipo(normalized.tipo);
-        if (blockCodigoTipoDuplicate) {
-          const exists = (doc.participantes ?? []).some(
-            (p) => String(p.codigo) === String(participante.codigo) && String(p.tipo) === String(normalized.tipo)
-          );
-          if (exists) throw new RegisterAbort("already_registered");
-        }
-
-        doc.participantes.push(participante);
-        await doc.save({ session });
-
-        const parts = doc.participantes ?? [];
-        const added = parts[parts.length - 1];
-        if (!added?._id) throw new RegisterAbort("not_found");
-
-        const camposFromDb = added.campos instanceof Map ? Object.fromEntries(added.campos) : (added.campos ?? {});
-        committed = {
-          participante: {
-            _id: String(added._id),
-            tipo: added.tipo,
-            codigo: added.codigo,
-            nombre: added.nombre,
-            carrera: added.carrera,
-            semestre: added.semestre,
-            correo: added.correo,
-            escuela: added.escuela,
-            nivel: added.nivel,
-            campos: camposFromDb as Record<string, string>,
-          },
-          concursoNombre: doc.nombre ?? "",
-          totalParticipantes: ocupacionPorPersonas(parts as Participante[]),
-        };
-      });
-      break;
-    } catch (err) {
-      if (err instanceof RegisterAbort) {
-        return { success: false as const, reason: err.reason };
-      }
-      if (isTransientTransactionError(err) && attempt < 2) continue;
-      throw err;
-    } finally {
-      session.endSession();
-    }
+  const allowMultiple = doc.allowMultiple === true;
+  const blockCodigoTipoDuplicate = !allowMultiple && !esModalidadEquipo(normalized.tipo);
+  if (blockCodigoTipoDuplicate) {
+    const exists = (doc.participantes ?? []).some(
+      (p) => String(p.codigo) === String(participante.codigo) && String(p.tipo) === String(normalized.tipo)
+    );
+    if (exists) return { success: false as const, reason: "already_registered" as const };
   }
 
-  const out = committed!;
+  doc.participantes.push(participante);
+  await doc.save();
+
+  const parts = doc.participantes ?? [];
+  const added = parts[parts.length - 1];
+  if (!added?._id) return { success: false as const, reason: "not_found" as const };
+
+  const camposFromDb = added.campos instanceof Map ? Object.fromEntries(added.campos) : (added.campos ?? {});
+
   return {
     success: true as const,
-    participante: out.participante,
-    concursoNombre: out.concursoNombre,
-    totalParticipantes: out.totalParticipantes,
+    participante: {
+      _id: String(added._id),
+      tipo: added.tipo,
+      codigo: added.codigo,
+      nombre: added.nombre,
+      carrera: added.carrera,
+      semestre: added.semestre,
+      correo: added.correo,
+      escuela: added.escuela,
+      nivel: added.nivel,
+      campos: camposFromDb as Record<string, string>,
+    },
+    concursoNombre: doc.nombre ?? "",
+    totalParticipantes: ocupacionPorPersonas(parts as Participante[]),
   };
 }
 
