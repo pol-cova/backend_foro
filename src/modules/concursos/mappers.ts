@@ -1,5 +1,5 @@
 import type { ConcursoTypes } from "./schema";
-import type { Participante } from "./mongoose";
+import type { ConfirmacionEmailEstado, Participante } from "./mongoose";
 import { resumenParticipacionConcurso } from "./participante-count";
 
 type ConcursoOut = ConcursoTypes["concursoResponse"];
@@ -16,6 +16,15 @@ interface MongooseParticipante {
   escuela: string;
   nivel: string;
   campos?: Record<string, string> | Map<string, string>;
+  confirmacionEmailEstado?: ConfirmacionEmailEstado;
+  confirmacionEmailEnviadoEn?: Date;
+  confirmacionEmailUltimoError?: string;
+}
+
+function mapConfirmacionEstado(raw: MongooseParticipante): ConfirmacionEmailEstado {
+  const e = raw.confirmacionEmailEstado;
+  if (e === "skipped" || e === "sent" || e === "failed" || e === "unknown") return e;
+  return "unknown";
 }
 
 interface MongooseConcurso {
@@ -50,6 +59,9 @@ export function mapParticipante(raw: MongooseParticipante): ParticipanteOut {
     escuela: raw.escuela,
     nivel: raw.nivel,
     campos,
+    confirmacionEmailEstado: mapConfirmacionEstado(raw),
+    confirmacionEmailEnviadoEn: raw.confirmacionEmailEnviadoEn,
+    confirmacionEmailUltimoError: raw.confirmacionEmailUltimoError,
   };
 }
 

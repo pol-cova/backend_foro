@@ -11,6 +11,13 @@ const constraintInput = t.Union([
   t.Array(constraintConfig),
 ]);
 
+const confirmacionEmailEstado = t.Union([
+  t.Literal("unknown"),
+  t.Literal("skipped"),
+  t.Literal("sent"),
+  t.Literal("failed"),
+]);
+
 const participanteResponse = t.Object({
   _id: t.String(),
   tipo: t.String(),
@@ -22,6 +29,9 @@ const participanteResponse = t.Object({
   escuela: t.String(),
   nivel: t.String(),
   campos: t.Record(t.String(), t.String()),
+  confirmacionEmailEstado: confirmacionEmailEstado,
+  confirmacionEmailEnviadoEn: t.Optional(t.Date()),
+  confirmacionEmailUltimoError: t.Optional(t.String()),
 });
 
 export const ConcursoSchema = {

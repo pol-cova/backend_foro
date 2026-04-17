@@ -8,6 +8,12 @@ function optionalEnv(key: string, defaultValue: string): string {
   return process.env[key]?.trim() ?? defaultValue;
 }
 
+function parseLogLevel(raw: string): "debug" | "info" | "warn" | "error" {
+  const v = raw.trim().toLowerCase();
+  if (v === "debug" || v === "info" || v === "warn" || v === "error") return v;
+  return "info";
+}
+
 export const config = {
   testing: process.env.TESTING === "true",
   port: process.env.PORT ? Number(process.env.PORT) : 3000,
@@ -39,5 +45,13 @@ export const config = {
     user: process.env.SMTP_USER?.trim(),
     pass: process.env.SMTP_PASS?.trim(),
     from: optionalEnv("SMTP_FROM", "noreply@devspartans.com"),
+  },
+  log: {
+    level: parseLogLevel(optionalEnv("LOG_LEVEL", "info")),
+  },
+  sentry: {
+    dsn: process.env.SENTRY_DSN?.trim(),
+    environment: optionalEnv("SENTRY_ENVIRONMENT", process.env.NODE_ENV?.trim() || "development"),
+    release: process.env.SENTRY_RELEASE?.trim(),
   },
 } as const;

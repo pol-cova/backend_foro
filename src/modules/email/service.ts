@@ -1,6 +1,7 @@
 import { render } from "@react-email/render";
 import nodemailer from "nodemailer";
 import { config } from "../../config";
+import { captureException } from "../../lib/error-tracker";
 import { logger } from "../../lib/logger";
 import SuccessEmail from "./success";
 
@@ -61,19 +62,19 @@ function sanitizePayload(payload: InscripcionConfirmPayload): InscripcionConfirm
   };
 }
 
-export async function sendInscripcionConfirm(to: string, payload: InscripcionConfirmPayload) {
+export async function sendInscripcionConfirm(to: string, payload: InscripcionConfirmPayload): Promise<boolean> {
   if (!to?.trim()) {
     logger.warn("sendInscripcionConfirm skipped: empty correo", { module: "email", to });
-    return;
+    return false;
   }
   if (!isPayloadValid(payload)) {
     logger.warn("sendInscripcionConfirm skipped: invalid payload", { module: "email", payload });
-    return;
+    return false;
   }
 
   if (config.testing) {
     if (mailCapture) mailCapture({ to: to.trim(), payload: sanitizePayload(payload) });
-    return;
+    return true;
   }
 
   const subject = `Inscripcion confirmada - ${payload.concurso}`;
@@ -88,8 +89,13 @@ export async function sendInscripcionConfirm(to: string, payload: InscripcionCon
       html,
     });
     logger.info("sendInscripcionConfirm sent", { module: "email", to: to.trim(), subject });
+    return true;
   } catch (err) {
     logger.error("sendInscripcionConfirm failed", { module: "email", error: err });
+    captureException(err, {
+      tags: { source: "email", action: "sendInscripcionConfirm" },
+      extra: { to: to.trim(), subject },
+    });
     throw err;
   }
 }

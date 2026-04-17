@@ -6,6 +6,8 @@ export interface ConstraintConfig {
   fields?: string[];
 }
 
+export type ConfirmacionEmailEstado = "unknown" | "skipped" | "sent" | "failed";
+
 export interface Participante {
   _id?: mongoose.Types.ObjectId;
   tipo: string;
@@ -17,6 +19,9 @@ export interface Participante {
   escuela: string;
   nivel: string;
   campos: Record<string, string>;
+  confirmacionEmailEstado?: ConfirmacionEmailEstado;
+  confirmacionEmailEnviadoEn?: Date;
+  confirmacionEmailUltimoError?: string;
 }
 
 export interface Concurso {
@@ -52,6 +57,12 @@ const participanteSchema = new mongoose.Schema<Participante>(
     escuela: { type: String, required: true },
     nivel: { type: String, required: true },
     campos: { type: mongoose.Schema.Types.Mixed, default: {} },
+    confirmacionEmailEstado: {
+      type: String,
+      enum: ["unknown", "skipped", "sent", "failed"],
+    },
+    confirmacionEmailEnviadoEn: { type: Date },
+    confirmacionEmailUltimoError: { type: String },
   },
   { _id: true }
 );

@@ -1,7 +1,8 @@
 import "dotenv/config";
 import "./config";
 import mongoose from "mongoose";
-import { Logger, logger } from "./lib/logger";
+import { captureException, initErrorTracker, isErrorTrackerEnabled } from "./lib/error-tracker";
+import { getCurrentRequestId, logger, runWithLogContext, serializeUnknownError } from "./lib/logger";
 import { Elysia } from "elysia";
 import { openapi } from "@elysiajs/openapi";
 import { cors } from "@elysiajs/cors";
@@ -11,12 +12,27 @@ import { auth } from "./modules/auth";
 import { concursos } from "./modules/concursos";
 import { sispa } from "./modules/sispa";
 
+initErrorTracker({
+  dsn: config.sentry.dsn,
+  environment: config.sentry.environment,
+  release: config.sentry.release,
+});
+
+if (isErrorTrackerEnabled()) {
+  process.on("unhandledRejection", (reason) => {
+    captureException(reason, { tags: { source: "process", type: "unhandledRejection" } });
+  });
+  process.on("uncaughtException", (error) => {
+    captureException(error, { tags: { source: "process", type: "uncaughtException" } });
+  });
+}
+
 async function connectDatabase() {
   try {
     await mongoose.connect(config.database.url);
     logger.info("Connected to MongoDB");
   } catch (error) {
-    logger.error("Failed to connect to MongoDB", { error });
+    logger.logError("Failed to connect to MongoDB", error);
     process.exit(1);
   }
 }
@@ -30,7 +46,47 @@ function getHealthStatus() {
 }
 
 const app = new Elysia()
-  .decorate("logger", new Logger())
+  .decorate("logger", logger)
+  .onError(({ code, error, request, path }) => {
+    const requestId = getCurrentRequestId();
+    const payload = {
+      elysiaCode: String(code),
+      method: request.method,
+      path,
+      error: serializeUnknownError(error),
+    };
+    const clientFault = (() => {
+      switch (code) {
+        case "VALIDATION":
+        case "NOT_FOUND":
+        case "INVALID_COOKIE_SIGNATURE":
+        case "INVALID_FILE_TYPE":
+        case "PARSE":
+          return true;
+        default:
+          if (typeof code === "number" && code < 500) return true;
+          return false;
+      }
+    })();
+    if (clientFault) {
+      if (code === "NOT_FOUND") {
+        logger.debug("Not found", { path, method: request.method });
+      } else {
+        logger.warn("Request error", payload);
+      }
+    } else {
+      logger.error("Request error", payload);
+      captureException(error, {
+        requestId,
+        tags: {
+          source: "elysia",
+          code: String(code),
+          method: request.method,
+          path,
+        },
+      });
+    }
+  })
   .derive(({ request }) => {
     const h = request.headers.get("authorization");
     return { bearerToken: h?.startsWith("Bearer ") ? h.slice(7) : null };
@@ -43,6 +99,13 @@ const app = new Elysia()
     })
   )
   .get("/health", getHealthStatus)
+  .get("/debug/sentry-test", ({ set }) => {
+    if (process.env.SENTRY_DEBUG_ROUTE !== "true") {
+      set.status = 404;
+      return "Not found";
+    }
+    throw new Error("Bugsink/Sentry connectivity test (expected)");
+  })
   .use(auth)
   .use(sispa)
   .use(concursos);
@@ -52,10 +115,21 @@ await connectDatabase();
 const server = Bun.serve({
   port: config.port,
   fetch: async (req) => {
-    const start = Date.now();
-    const res = await app.fetch(req);
-    logger.http(req, res, Date.now() - start);
-    return res;
+    const incoming = req.headers.get("x-request-id")?.trim();
+    const requestId = incoming && incoming.length > 0 ? incoming : crypto.randomUUID();
+    return runWithLogContext({ requestId }, async () => {
+      const start = Date.now();
+      const res = await app.fetch(req);
+      const headers = new Headers(res.headers);
+      headers.set("x-request-id", requestId);
+      const out = new Response(res.body, {
+        status: res.status,
+        statusText: res.statusText,
+        headers,
+      });
+      logger.http(req, out, Date.now() - start);
+      return out;
+    });
   },
 });
 setServerRef(server);

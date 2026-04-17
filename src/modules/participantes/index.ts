@@ -1,11 +1,17 @@
 import { Elysia, t } from "elysia";
 import { rateLimit } from "elysia-rate-limit";
 import { config } from "../../config";
+import { captureMessage, severityForHttpStatus } from "../../lib/error-tracker";
+import { getCurrentRequestId } from "../../lib/logger";
 import { getServerRef } from "../../lib/server-ref";
-import { addParticipante, listParticipantes, removeParticipante } from "./service";
+import {
+  addParticipante,
+  listParticipantes,
+  removeParticipante,
+  resendConfirmacionEmail,
+  scheduleConfirmacionEmailAfterRegister,
+} from "./service";
 import { ParticipanteSchema } from "./schema";
-import { logger } from "../../lib/logger";
-import { sendInscripcionConfirm } from "../email/service";
 import { cookieSchema, sharedAuthResponses } from "../auth/common";
 import { AuthSchema } from "../auth/schema";
 
@@ -76,20 +82,26 @@ export const participantes = new Elysia({ prefix: "/:id/participantes" })
       const result = await addParticipante(id, body);
       if (!result.success) {
         const { status, message } = addParticipanteErrorMap[result.reason];
+        captureMessage(`Participante registration failed: ${result.reason}`, severityForHttpStatus(status), {
+          requestId: getCurrentRequestId(),
+          tags: {
+            flow: "participante_register",
+            reason: result.reason,
+          },
+          extra: { concursoId: id },
+        });
         set.status = status;
         return message;
       }
       const mailTo = result.participante.campos?.correo?.trim() || result.participante.correo;
       if (result.concursoNombre) {
-        sendInscripcionConfirm(mailTo, {
+        scheduleConfirmacionEmailAfterRegister(id, result.participante._id, result.concursoNombre, mailTo, {
           nombre: result.participante.nombre,
           concurso: result.concursoNombre,
           tipo: result.participante.tipo,
           nivel: result.participante.nivel,
           campos: result.participante.campos,
           totalParticipantes: result.totalParticipantes,
-        }).catch((err) => {
-          logger.error("sendInscripcionConfirm failed", { module: "participantes", error: err });
         });
       }
       set.status = 201;
@@ -109,6 +121,46 @@ export const participantes = new Elysia({ prefix: "/:id/participantes" })
         ]),
         404: t.Union([ParticipanteSchema.concursoNotFound, ParticipanteSchema.estudianteNoEncontrado]),
         409: t.Union([ParticipanteSchema.cupoExceeded, ParticipanteSchema.alreadyRegistered]),
+      },
+    }
+  )
+  .post(
+    "/:participacionId/confirmacion-email",
+    async ({ params: { id, participacionId }, set, ...rest }) => {
+      const user = (rest as unknown as { user: { isAdmin: boolean } }).user;
+      if (!user.isAdmin) {
+        set.status = 403;
+        return AuthSchema.forbidden.const;
+      }
+      const outcome = await resendConfirmacionEmail(id, participacionId);
+      if (!outcome.ok) {
+        if (outcome.reason === "not_found") {
+          set.status = 404;
+          return ParticipanteSchema.concursoNotFound.const;
+        }
+        if (outcome.reason === "participante_not_found") {
+          set.status = 404;
+          return ParticipanteSchema.participanteNotFound.const;
+        }
+        if (outcome.reason === "no_correo") {
+          set.status = 400;
+          return ParticipanteSchema.confirmacionEmailNoCorreo.const;
+        }
+        set.status = 502;
+        return ParticipanteSchema.confirmacionEmailSmtpFailed.const;
+      }
+      return { ok: true as const };
+    },
+    {
+      auth: true,
+      cookie: cookieSchema,
+      params: t.Object({ id: t.String(), participacionId: t.String() }),
+      response: {
+        200: ParticipanteSchema.confirmacionEmailResendOk,
+        400: ParticipanteSchema.confirmacionEmailNoCorreo,
+        404: t.Union([ParticipanteSchema.concursoNotFound, ParticipanteSchema.participanteNotFound]),
+        502: ParticipanteSchema.confirmacionEmailSmtpFailed,
+        ...sharedAuthResponses,
       },
     }
   )

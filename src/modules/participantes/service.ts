@@ -3,6 +3,8 @@ import { ConcursoModel, type ConstraintConfig, type Participante } from "../conc
 import { countParticipantes, esModalidadEquipo, ocupacionPorPersonas } from "../concursos/participante-count";
 import { mapParticipante } from "../concursos/mappers";
 import { getEstudianteByCodigo, type EstudiantePrefill } from "../sispa/service";
+import { sendInscripcionConfirm, type InscripcionConfirmPayload } from "../email/service";
+import { applyConfirmacionEmailResult } from "./confirmacion-email-tracking";
 import { MAX_CAMPOS_KEYS, type ParticipanteSchemaTypes } from "./schema";
 
 type RegisterData = ParticipanteSchemaTypes["registerBody"];
@@ -159,10 +161,85 @@ export async function addParticipante(concursoId: string, data: RegisterData) {
       escuela: added.escuela,
       nivel: added.nivel,
       campos: camposFromDb as Record<string, string>,
+      confirmacionEmailEstado: "unknown" as const,
+      confirmacionEmailEnviadoEn: undefined,
+      confirmacionEmailUltimoError: undefined,
     },
     concursoNombre: doc.nombre ?? "",
     totalParticipantes: ocupacionPorPersonas(parts as Participante[]),
   };
+}
+
+export function scheduleConfirmacionEmailAfterRegister(
+  concursoId: string,
+  participacionId: string,
+  concursoNombre: string,
+  mailTo: string,
+  payload: InscripcionConfirmPayload
+): void {
+  if (!concursoNombre?.trim()) return;
+  void (async () => {
+    try {
+      const sent = await sendInscripcionConfirm(mailTo, payload);
+      if (sent) await applyConfirmacionEmailResult(concursoId, participacionId, { kind: "sent" });
+      else await applyConfirmacionEmailResult(concursoId, participacionId, { kind: "skipped" });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      await applyConfirmacionEmailResult(concursoId, participacionId, { kind: "failed", error: msg });
+    }
+  })();
+}
+
+export type ResendConfirmacionResult =
+  | { ok: true }
+  | {
+      ok: false;
+      reason: "not_found" | "participante_not_found" | "no_correo" | "smtp_failed";
+    };
+
+export async function resendConfirmacionEmail(
+  concursoId: string,
+  participacionId: string
+): Promise<ResendConfirmacionResult> {
+  if (!mongoose.isValidObjectId(concursoId) || !mongoose.isValidObjectId(participacionId)) {
+    return { ok: false, reason: "not_found" };
+  }
+
+  const doc = await ConcursoModel.findById(concursoId).select("nombre participantes").lean();
+  if (!doc) return { ok: false, reason: "not_found" };
+
+  const parts = doc.participantes ?? [];
+  const raw = parts.find((p) => String(p._id) === participacionId);
+  if (!raw) return { ok: false, reason: "participante_not_found" };
+
+  const camposRaw = raw.campos instanceof Map ? Object.fromEntries(raw.campos) : (raw.campos ?? {});
+  const campos = camposRaw as Record<string, string>;
+  const mailTo = (campos["correo"] ?? "").trim() || String(raw.correo ?? "").trim();
+  if (!mailTo) return { ok: false, reason: "no_correo" };
+
+  const totalParticipantes = ocupacionPorPersonas(parts as Participante[]);
+  const payload: InscripcionConfirmPayload = {
+    nombre: raw.nombre,
+    concurso: doc.nombre ?? "",
+    tipo: raw.tipo,
+    nivel: raw.nivel,
+    campos,
+    totalParticipantes,
+  };
+
+  try {
+    const sent = await sendInscripcionConfirm(mailTo, payload);
+    if (sent) {
+      await applyConfirmacionEmailResult(concursoId, participacionId, { kind: "sent" });
+      return { ok: true };
+    }
+    await applyConfirmacionEmailResult(concursoId, participacionId, { kind: "skipped" });
+    return { ok: false, reason: "no_correo" };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await applyConfirmacionEmailResult(concursoId, participacionId, { kind: "failed", error: msg });
+    return { ok: false, reason: "smtp_failed" };
+  }
 }
 
 export async function listParticipantes(concursoId: string) {
