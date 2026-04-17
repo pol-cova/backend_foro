@@ -1,5 +1,12 @@
 import { t, type UnwrapSchema } from "elysia";
 
+const confirmacionEmailEstado = t.Union([
+  t.Literal("unknown"),
+  t.Literal("skipped"),
+  t.Literal("sent"),
+  t.Literal("failed"),
+]);
+
 const participanteResponse = t.Object({
   _id: t.String(),
   tipo: t.String(),
@@ -11,6 +18,9 @@ const participanteResponse = t.Object({
   correo: t.String(),
   escuela: t.String(),
   campos: t.Record(t.String(), t.String()),
+  confirmacionEmailEstado: confirmacionEmailEstado,
+  confirmacionEmailEnviadoEn: t.Optional(t.Date()),
+  confirmacionEmailUltimoError: t.Optional(t.String()),
 });
 
 const MAX_CAMPO_KEY = 64;
@@ -38,6 +48,10 @@ export const ParticipanteSchema = {
   estudianteNoEncontrado: t.Literal("Estudiante no encontrado"),
   alreadyRegistered: t.Literal("Student already registered for this concurso"),
   payloadTooLarge: t.Literal("Too many registration fields"),
+  participanteNotFound: t.Literal("Participante not found"),
+  confirmacionEmailNoCorreo: t.Literal("No email address for confirmation"),
+  confirmacionEmailSmtpFailed: t.Literal("Confirmation email could not be sent"),
+  confirmacionEmailResendOk: t.Object({ ok: t.Literal(true) }),
 } as const;
 
 export { MAX_CAMPOS_KEYS };

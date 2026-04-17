@@ -19,6 +19,7 @@ describe("concursos mappers", () => {
       const result = mapParticipante(raw);
       expect(result._id).toBe("abc123");
       expect(result.campos).toEqual({ proyecto: "X" });
+      expect(result.confirmacionEmailEstado).toBe("unknown");
     });
 
     it("converts Map campos to Record", () => {
@@ -36,6 +37,7 @@ describe("concursos mappers", () => {
       };
       const result = mapParticipante(raw);
       expect(result.campos).toEqual({ key: "value" });
+      expect(result.confirmacionEmailEstado).toBe("unknown");
     });
 
     it("handles missing campos", () => {
@@ -51,6 +53,7 @@ describe("concursos mappers", () => {
       };
       const result = mapParticipante(raw);
       expect(result.campos).toEqual({});
+      expect(result.confirmacionEmailEstado).toBe("unknown");
     });
   });
 
@@ -74,6 +77,8 @@ describe("concursos mappers", () => {
             escuela: "CUV",
             nivel: "Avanzado",
             campos: { proyecto: "P" },
+            confirmacionEmailEstado: "sent",
+            confirmacionEmailEnviadoEn: new Date("2026-01-15T12:00:00.000Z"),
           },
         ],
         createdAt: new Date("2025-01-01"),
@@ -88,6 +93,8 @@ describe("concursos mappers", () => {
       expect(result.equipo).toBe(0);
       expect(result.participantes[0].nombre).toBe("A");
       expect(result.participantes[0].campos).toEqual({ proyecto: "P" });
+      expect(result.participantes[0].confirmacionEmailEstado).toBe("sent");
+      expect(result.participantes[0].confirmacionEmailEnviadoEn).toEqual(new Date("2026-01-15T12:00:00.000Z"));
     });
 
     it("provides default dates when missing", () => {

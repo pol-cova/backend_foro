@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "bun:test";
 import { Elysia } from "elysia";
 import { create, list, getById } from "../src/modules/concursos/service";
-import { addParticipante } from "../src/modules/participantes/service";
+import { addParticipante, resendConfirmacionEmail } from "../src/modules/participantes/service";
 import { auth } from "../src/modules/auth";
 import { concursos } from "../src/modules/concursos";
 import { ConcursoModel } from "../src/modules/concursos/mongoose";
@@ -340,6 +340,85 @@ describe("participantes", () => {
     expect(res.status).toBe(201);
     expect(captured).toHaveLength(1);
     expect(captured[0].to).toBe("user-preferred@example.com");
+  });
+
+  itWithTesting("persiste confirmacion email estado sent tras registro", async () => {
+    const { setMailCapture, clearMailCapture } = await import("../src/modules/email/service");
+    setMailCapture(() => {});
+
+    const created = await create({
+      nombre: "Tracking Test",
+      cupo: 10,
+      constraints: [{ id: "modalidad_individual", field: "true" }],
+      niveles: ["AVANZADO"],
+      allowMultiple: false,
+    });
+    expect(created.success).toBe(true);
+
+    const app = new Elysia().use(auth).use(concursos);
+    const res = await app.handle(
+      new Request(`http://localhost/concursos/${created.concurso!._id}/participantes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          codigo: "loadtest-vu1-iter0",
+          tipo: "modalidad_individual",
+          nivel: "AVANZADO",
+          semestre: 5,
+        }),
+      })
+    );
+
+    clearMailCapture();
+
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as { confirmacionEmailEstado: string };
+    expect(body.confirmacionEmailEstado).toBe("unknown");
+
+    await new Promise((r) => setTimeout(r, 200));
+    const doc = await ConcursoModel.findById(created.concurso!._id).lean();
+    expect(doc?.participantes?.[0]?.confirmacionEmailEstado).toBe("sent");
+  });
+
+  itWithTesting("resendConfirmacionEmail envia y marca sent", async () => {
+    const { setMailCapture, clearMailCapture } = await import("../src/modules/email/service");
+    setMailCapture(() => {});
+
+    const created = await create({
+      nombre: "Resend Test",
+      cupo: 10,
+      constraints: [{ id: "modalidad_individual", field: "true" }],
+      niveles: ["BASICO"],
+      allowMultiple: false,
+    });
+    expect(created.success).toBe(true);
+    const id = created.concurso!._id;
+    await ConcursoModel.updateOne(
+      { _id: id },
+      {
+        $push: {
+          participantes: {
+            tipo: "modalidad_individual",
+            codigo: "999",
+            nombre: "Test User",
+            carrera: "c",
+            semestre: 1,
+            correo: "legacy@example.com",
+            escuela: "s",
+            nivel: "BASICO",
+            campos: {},
+          },
+        },
+      }
+    );
+    const doc = await ConcursoModel.findById(id).lean();
+    const pid = String(doc!.participantes![0]._id);
+
+    const r = await resendConfirmacionEmail(id, pid);
+    clearMailCapture();
+    expect(r.ok).toBe(true);
+    const after = await ConcursoModel.findById(id).lean();
+    expect(after?.participantes?.[0]?.confirmacionEmailEstado).toBe("sent");
   });
 
   it("getById incluye participantes_totales individuales y equipo", async () => {

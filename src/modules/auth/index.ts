@@ -2,6 +2,8 @@ import { Elysia, t, status } from "elysia";
 import { jwt } from "@elysiajs/jwt";
 import { login, register, listUsers, updateUser, deleteUser } from "./service";
 import { config } from "../../config";
+import { captureMessage } from "../../lib/error-tracker";
+import { getCurrentRequestId } from "../../lib/logger";
 import { AuthSchema } from "./schema";
 import { cookieSchema } from "./common";
 
@@ -70,6 +72,10 @@ export const auth = new Elysia({ name: "auth", prefix: "/auth" })
       }
       const result = await register(body);
       if (!result.success) {
+        captureMessage("Auth user registration failed: user already exists", "warning", {
+          requestId: getCurrentRequestId(),
+          tags: { flow: "auth_register", reason: "conflict" },
+        });
         set.status = 409;
         return AuthSchema.registerConflict.const;
       }
