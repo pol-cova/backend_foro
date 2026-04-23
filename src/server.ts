@@ -13,6 +13,7 @@ import { judges } from "./modules/judges";
 import { eventManagers } from "./modules/eventManagers";
 import { concursos } from "./modules/concursos";
 import { sispa } from "./modules/sispa";
+import { rubrics, evaluationRoutes, resultsRoutes } from "./modules/evaluations";
 
 initErrorTracker({
   dsn: config.sentry.dsn,
@@ -108,7 +109,10 @@ const app = new Elysia()
   .use(judges)
   .use(eventManagers)
   .use(sispa)
-  .use(concursos);
+  .use(concursos)
+  .use(rubrics)
+  .use(evaluationRoutes)
+  .use(resultsRoutes);
 
 await connectDatabase();
 

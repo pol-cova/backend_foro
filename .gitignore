@@ -50,6 +50,7 @@ package-lock.json
 agents/
 hooks/
 AGENTS.md
+.internals/
 
 # references
 references/

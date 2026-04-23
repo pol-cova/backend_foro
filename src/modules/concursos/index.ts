@@ -2,9 +2,11 @@ import { Elysia, t } from "elysia";
 import { auth } from "../auth";
 import { participantes } from "../participantes";
 import { create, list, getById, update, deleteConcurso } from "./service";
+import { attachRubricToConcurso, detachRubricFromConcurso } from "../evaluations/service";
 import { ConcursoSchema } from "./schema";
 import { AuthSchema } from "../auth/schema";
 import { cookieSchema, sharedAuthResponses } from "../auth/common";
+import { RubricSchema } from "../evaluations/schema";
 
 export const concursos = new Elysia({ prefix: "/concursos" })
   .use(auth)
@@ -113,6 +115,57 @@ export const concursos = new Elysia({ prefix: "/concursos" })
         204: t.Undefined(),
         404: ConcursoSchema.concursoNotFound,
         ...sharedAuthResponses,
+      },
+    }
+  )
+  .put(
+    "/:id/rubric",
+    async ({ body, params: { id }, set }) => {
+      const result = await attachRubricToConcurso(id, body.rubricTemplateId);
+      if (!result.success) {
+        if (result.reason === "concurso_not_found") {
+          set.status = 404;
+          return ConcursoSchema.concursoNotFound.const;
+        }
+        set.status = 404;
+        return RubricSchema.notFound.const;
+      }
+      return result.concurso;
+    },
+    {
+      auth: true,
+      authorizeEvent: ["admin", "eventManager"],
+      body: t.Object({ rubricTemplateId: t.String() }),
+      cookie: cookieSchema,
+      params: t.Object({ id: t.String() }),
+      response: {
+        200: ConcursoSchema.concursoResponse,
+        401: AuthSchema.unauthorized,
+        403: AuthSchema.forbidden,
+        404: t.Union([ConcursoSchema.concursoNotFound, RubricSchema.notFound]),
+      },
+    }
+  )
+  .delete(
+    "/:id/rubric",
+    async ({ params: { id }, set }) => {
+      const result = await detachRubricFromConcurso(id);
+      if (!result.success) {
+        set.status = 404;
+        return ConcursoSchema.concursoNotFound.const;
+      }
+      return result.concurso;
+    },
+    {
+      auth: true,
+      authorizeEvent: ["admin", "eventManager"],
+      cookie: cookieSchema,
+      params: t.Object({ id: t.String() }),
+      response: {
+        200: ConcursoSchema.concursoResponse,
+        401: AuthSchema.unauthorized,
+        403: AuthSchema.forbidden,
+        404: ConcursoSchema.concursoNotFound,
       },
     }
   );

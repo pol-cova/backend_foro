@@ -13,4 +13,14 @@ test
 *.test.ts
 .cursor
 .vscode
+.claude
+.opencode
+.agents
+scripts
+seeds
+k6
+hooks
 references
+build
+*.log
+.DS_Store
