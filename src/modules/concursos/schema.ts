@@ -63,6 +63,7 @@ export const ConcursoSchema = {
     individuales: t.Number(),
     equipo: t.Number(),
     allowMultiple: t.Optional(t.Boolean()),
+    rubricTemplateId: t.Optional(t.String()),
     createdAt: t.Date(),
     updatedAt: t.Date(),
   }),
@@ -79,6 +80,7 @@ export const ConcursoSchema = {
       individuales: t.Number(),
       equipo: t.Number(),
       allowMultiple: t.Optional(t.Boolean()),
+      rubricTemplateId: t.Optional(t.String()),
       createdAt: t.Date(),
       updatedAt: t.Date(),
     })

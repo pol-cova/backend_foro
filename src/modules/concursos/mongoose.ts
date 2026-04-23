@@ -33,6 +33,7 @@ export interface Concurso {
   niveles: string[];
   participantes: Participante[];
   allowMultiple?: boolean;
+  rubricTemplateId?: mongoose.Types.ObjectId;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -76,6 +77,7 @@ const concursoSchema = new mongoose.Schema<Concurso>(
     niveles: { type: [String], required: true },
     participantes: { type: [participanteSchema], default: [] },
     allowMultiple: { type: Boolean, default: false },
+    rubricTemplateId: { type: mongoose.Schema.Types.ObjectId, ref: "RubricTemplate" },
   },
   { timestamps: true }
 );
