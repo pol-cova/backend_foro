@@ -18,7 +18,6 @@ import { auth } from "../auth";
 
 type AddParticipanteReason =
   | "not_found"
-  | "estudiante_no_encontrado"
   | "cupo_exceeded"
   | "already_registered"
   | "tipo_no_permitido"
@@ -32,7 +31,6 @@ const addParticipanteErrorMap: Record<
   { status: 400 | 404 | 409; message: string }
 > = {
   not_found: { status: 404, message: ParticipanteSchema.concursoNotFound.const },
-  estudiante_no_encontrado: { status: 404, message: ParticipanteSchema.estudianteNoEncontrado.const },
   cupo_exceeded: { status: 409, message: ParticipanteSchema.cupoExceeded.const },
   already_registered: { status: 409, message: ParticipanteSchema.alreadyRegistered.const },
   tipo_no_permitido: { status: 400, message: ParticipanteSchema.tipoNoPermitido.const },
@@ -118,7 +116,7 @@ export const participantes = new Elysia({ prefix: "/:id/participantes" })
           ParticipanteSchema.campoVacio,
           ParticipanteSchema.payloadTooLarge,
         ]),
-        404: t.Union([ParticipanteSchema.concursoNotFound, ParticipanteSchema.estudianteNoEncontrado]),
+        404: ParticipanteSchema.concursoNotFound,
         409: t.Union([ParticipanteSchema.cupoExceeded, ParticipanteSchema.alreadyRegistered]),
       },
     }

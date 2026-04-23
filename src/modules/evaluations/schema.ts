@@ -87,8 +87,10 @@ const participantResultSchema = t.Object({
   participantNombre: t.String(),
   nivel: t.String(),
   evaluationsCount: t.Number(),
+  totalJudgesForLevel: t.Number(),
+  isComplete: t.Boolean(),
   criterionAverages: t.Array(criterionAverageSchema),
-  finalScore: t.Number(),
+  finalScore: t.Union([t.Number(), t.Null()]),
 });
 
 export const ResultsSchema = {

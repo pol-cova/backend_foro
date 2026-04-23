@@ -22,12 +22,13 @@ export async function createJudge(data: JudgeModelType["createBody"]) {
       codigo: data.codigo,
       nombre: data.nombre,
       eventoId: data.eventoId,
+      nivel: data.nivel,
       pinHash,
     });
 
     return {
       success: true as const,
-      judge: { codigo: judge.codigo, nombre: judge.nombre, eventoId: judge.eventoId, pin: plainPin },
+      judge: { codigo: judge.codigo, nombre: judge.nombre, eventoId: judge.eventoId, nivel: judge.nivel, pin: plainPin },
     };
   } catch (error: any) {
     if (error.code === 11000) {
@@ -38,12 +39,12 @@ export async function createJudge(data: JudgeModelType["createBody"]) {
 }
 
 export async function listJudges() {
-  const judges = await JudgeMongooseModel.find().select("codigo nombre eventoId").lean();
+  const judges = await JudgeMongooseModel.find().select("codigo nombre eventoId nivel").lean();
   return judges;
 }
 
 export async function getJudge(codigo: string) {
-  const judge = await JudgeMongooseModel.findOne({ codigo }).select("codigo nombre eventoId").lean();
+  const judge = await JudgeMongooseModel.findOne({ codigo }).select("codigo nombre eventoId nivel").lean();
   if (!judge) return { success: false as const, reason: "not_found" as const };
   return { success: true as const, judge };
 }
@@ -55,7 +56,7 @@ export async function updateJudge(codigo: string, data: JudgeModelType["updateBo
     { returnDocument: "after", runValidators: true }
   );
   if (!judge) return { success: false as const, reason: "not_found" as const };
-  return { success: true as const, judge: { codigo: judge.codigo, nombre: judge.nombre, eventoId: judge.eventoId } };
+  return { success: true as const, judge: { codigo: judge.codigo, nombre: judge.nombre, eventoId: judge.eventoId, nivel: judge.nivel } };
 }
 
 export async function resetJudgePin(codigo: string) {

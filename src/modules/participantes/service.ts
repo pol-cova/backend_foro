@@ -2,7 +2,6 @@ import mongoose from "mongoose";
 import { ConcursoModel, type ConstraintConfig, type Participante } from "../concursos/mongoose";
 import { countParticipantes, esModalidadEquipo, ocupacionPorPersonas } from "../concursos/participante-count";
 import { mapParticipante } from "../concursos/mappers";
-import { getEstudianteByCodigo, type EstudiantePrefill } from "../sispa/service";
 import { sendInscripcionConfirm, type InscripcionConfirmPayload } from "../email/service";
 import { applyConfirmacionEmailResult } from "./confirmacion-email-tracking";
 import { MAX_CAMPOS_KEYS, type ParticipanteSchemaTypes } from "./schema";
@@ -82,23 +81,14 @@ export async function addParticipante(concursoId: string, data: RegisterData) {
     if ("empty" in resolved) return { success: false as const, reason: "campo_vacio" as const };
   }
 
-  const isCuvalles = (campos["institucion"] ?? "").toLowerCase().includes("cuvalles");
-
-  let e: EstudiantePrefill;
-  if (isCuvalles || !campos["institucion"]) {
-    const estudianteRes = await getEstudianteByCodigo(normalized.codigo);
-    if (!estudianteRes.success) return { success: false as const, reason: "estudiante_no_encontrado" as const };
-    e = estudianteRes.estudiante;
-  } else {
-    e = {
-      codigo: normalized.codigo,
-      nombre: campos["nombre_1"] ?? normalized.codigo,
-      correo: campos["correo_1"] ?? "",
-      carrera: campos["carrera_1"] ?? "",
-      semestre: normalized.semestre,
-      escuela: campos["institucion"],
-    };
-  }
+  const e = {
+    codigo: normalized.codigo,
+    nombre: campos["nombre_completo"] ?? campos["nombre"] ?? normalized.codigo,
+    correo: campos["correo"] ?? "",
+    carrera: campos["carrera_o_semestre"] ?? campos["carrera"] ?? "",
+    semestre: normalized.semestre,
+    escuela: campos["institucion"] ?? "CUVALLES",
+  };
 
   const camposOut: Record<string, string> = {};
   for (const fieldName of requiredFields) {

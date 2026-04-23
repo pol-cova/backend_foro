@@ -16,6 +16,7 @@ import {
   getScoreboard,
 } from "./service";
 import { addScoreboardListener, removeScoreboardListener } from "./sse";
+import { exportParticipants, exportEvaluations } from "./export-service";
 
 // ─── Rubric Template Routes ───
 
@@ -141,6 +142,7 @@ const evaluationRoutes = new Elysia({ prefix: "/evaluations" })
           no_rubric: { status: 400, message: EvaluationSchema.noRubric.const },
           rubric_not_found: { status: 400, message: "Rubric template not found" },
           invalid_scores: { status: 400, message: EvaluationSchema.invalidScores.const },
+          level_mismatch: { status: 403, message: "Judge is not assigned to evaluate this level" },
           conflict: { status: 409, message: EvaluationSchema.conflict.const },
         };
         const mapped = reasonMap[result.reason];
@@ -160,12 +162,12 @@ const evaluationRoutes = new Elysia({ prefix: "/evaluations" })
       body: EvaluationSchema.createBody,
       cookie: cookieSchema,
       response: {
+        ...sharedAuthResponses,
         201: EvaluationSchema.evaluationResponse,
         400: t.Union([EvaluationSchema.noRubric, EvaluationSchema.invalidScores]),
-        403: AuthSchema.forbidden,
+        403: t.Union([AuthSchema.forbidden, t.Literal("Judge is not assigned to evaluate this level")]),
         404: t.Union([t.Literal("Concurso not found"), t.Literal("Participant not found")]),
         409: EvaluationSchema.conflict,
-        ...sharedAuthResponses,
       },
     }
   )
@@ -311,6 +313,58 @@ const resultsRoutes = new Elysia({ prefix: "/concursos" })
       query: t.Object({
         nivel: t.Optional(t.String()),
       }),
+    }
+  )
+  .get(
+    "/:id/export/participants",
+    async ({ params: { id }, set }) => {
+      const result = await exportParticipants(id);
+      if (!result.success) {
+        set.status = 404;
+        return "Concurso not found";
+      }
+      set.headers["Content-Type"] =
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+      set.headers["Content-Disposition"] = `attachment; filename="${result.filename}"`;
+      return result.buffer;
+    },
+    {
+      auth: true,
+      authorizeEvent: ["admin", "eventManager"],
+      cookie: cookieSchema,
+      params: t.Object({ id: t.String() }),
+      response: {
+        200: t.Any(),
+        401: AuthSchema.unauthorized,
+        403: AuthSchema.forbidden,
+        404: t.Literal("Concurso not found"),
+      },
+    }
+  )
+  .get(
+    "/:id/export/evaluations",
+    async ({ params: { id }, set }) => {
+      const result = await exportEvaluations(id);
+      if (!result.success) {
+        set.status = 404;
+        return "Concurso not found";
+      }
+      set.headers["Content-Type"] =
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+      set.headers["Content-Disposition"] = `attachment; filename="${result.filename}"`;
+      return result.buffer;
+    },
+    {
+      auth: true,
+      authorizeEvent: ["admin", "eventManager"],
+      cookie: cookieSchema,
+      params: t.Object({ id: t.String() }),
+      response: {
+        200: t.Any(),
+        401: AuthSchema.unauthorized,
+        403: AuthSchema.forbidden,
+        404: t.Literal("Concurso not found"),
+      },
     }
   );
 
