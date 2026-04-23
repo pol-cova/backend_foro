@@ -46,6 +46,10 @@ package-lock.json
 .vscode/
 .claude/
 .cursor/
+.opencode/
+agents/
+hooks/
+AGENTS.md
 
 # references
 references/

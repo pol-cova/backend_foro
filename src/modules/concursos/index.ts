@@ -11,11 +11,7 @@ export const concursos = new Elysia({ prefix: "/concursos" })
   .use(participantes)
   .post(
     "/",
-    async ({ body, user, set }) => {
-      if (!user.isAdmin) {
-        set.status = 403;
-        return AuthSchema.forbidden.const;
-      }
+    async ({ body, set }) => {
       const result = await create(body);
       if (!result.success) {
         set.status = 400;
@@ -28,6 +24,7 @@ export const concursos = new Elysia({ prefix: "/concursos" })
     },
     {
       auth: true,
+      authorize: "admin",
       body: ConcursoSchema.createBody,
       cookie: cookieSchema,
       response: {
@@ -55,20 +52,21 @@ export const concursos = new Elysia({ prefix: "/concursos" })
       return result.concurso;
     },
     {
+      auth: true,
+      authorizeEvent: ["admin", "eventManager", "judge"],
+      cookie: cookieSchema,
       params: t.Object({ id: t.String() }),
       response: {
         200: ConcursoSchema.concursoResponse,
+        401: AuthSchema.unauthorized,
+        403: AuthSchema.forbidden,
         404: ConcursoSchema.concursoNotFound,
       },
     }
   )
   .patch(
     "/:id",
-    async ({ body, params: { id }, user, set }) => {
-      if (!user.isAdmin) {
-        set.status = 403;
-        return AuthSchema.forbidden.const;
-      }
+    async ({ body, params: { id }, set }) => {
       const result = await update(id, body);
       if (!result.success) {
         const reasonMap = {
@@ -84,6 +82,7 @@ export const concursos = new Elysia({ prefix: "/concursos" })
     },
     {
       auth: true,
+      authorize: "admin",
       body: ConcursoSchema.updateBody,
       cookie: cookieSchema,
       params: t.Object({ id: t.String() }),
@@ -97,11 +96,7 @@ export const concursos = new Elysia({ prefix: "/concursos" })
   )
   .delete(
     "/:id",
-    async ({ params: { id }, user, set }) => {
-      if (!user.isAdmin) {
-        set.status = 403;
-        return AuthSchema.forbidden.const;
-      }
+    async ({ params: { id }, set }) => {
       const result = await deleteConcurso(id);
       if (!result.success) {
         set.status = 404;
@@ -111,6 +106,7 @@ export const concursos = new Elysia({ prefix: "/concursos" })
     },
     {
       auth: true,
+      authorize: "admin",
       cookie: cookieSchema,
       params: t.Object({ id: t.String() }),
       response: {

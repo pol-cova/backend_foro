@@ -77,7 +77,7 @@ describe("concursos mappers", () => {
             escuela: "CUV",
             nivel: "Avanzado",
             campos: { proyecto: "P" },
-            confirmacionEmailEstado: "sent",
+            confirmacionEmailEstado: "sent" as const,
             confirmacionEmailEnviadoEn: new Date("2026-01-15T12:00:00.000Z"),
           },
         ],

@@ -1,9 +1,11 @@
 import mongoose from "mongoose";
 
+export type UserRole = "admin" | "eventManager";
+
 export interface User {
   codigo: string;
   nombre: string;
-  isAdmin: boolean;
+  role: UserRole;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -12,7 +14,7 @@ const userSchema = new mongoose.Schema<User>(
   {
     codigo: { type: String, required: true, unique: true },
     nombre: { type: String, required: true },
-    isAdmin: { type: Boolean, default: false },
+    role: { type: String, enum: ["admin", "eventManager"], default: "eventManager" },
   },
   { timestamps: true }
 );

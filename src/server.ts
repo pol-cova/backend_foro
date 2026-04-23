@@ -9,6 +9,8 @@ import { cors } from "@elysiajs/cors";
 import { config } from "./config";
 import { setServerRef } from "./lib/server-ref";
 import { auth } from "./modules/auth";
+import { judges } from "./modules/judges";
+import { eventManagers } from "./modules/eventManagers";
 import { concursos } from "./modules/concursos";
 import { sispa } from "./modules/sispa";
 
@@ -87,10 +89,6 @@ const app = new Elysia()
       });
     }
   })
-  .derive(({ request }) => {
-    const h = request.headers.get("authorization");
-    return { bearerToken: h?.startsWith("Bearer ") ? h.slice(7) : null };
-  })
   .use(openapi())
   .use(
     cors({
@@ -107,6 +105,8 @@ const app = new Elysia()
     throw new Error("Bugsink/Sentry connectivity test (expected)");
   })
   .use(auth)
+  .use(judges)
+  .use(eventManagers)
   .use(sispa)
   .use(concursos);
 
