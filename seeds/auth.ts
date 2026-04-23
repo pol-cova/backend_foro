@@ -5,9 +5,9 @@ import { logger } from "../src/lib/logger";
 import { UserModel } from "../src/modules/auth/mongoose";
 
 const users = [
-  { codigo: "219640329", nombre: "Paul Contreras", isAdmin: true },
-  { codigo: "2952399", nombre: "Erick Guerrero", isAdmin: true },
-  { codigo: "123456789", nombre: "Non Admin User", isAdmin: false },
+  { codigo: "219640329", nombre: "Paul Contreras", role: "admin" },
+  { codigo: "2952399", nombre: "Erick Guerrero", role: "admin" },
+  { codigo: "123456789", nombre: "Non Admin User", role: "eventManager" },
 ];
 
 async function seed() {

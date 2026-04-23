@@ -24,7 +24,7 @@ beforeEach(async () => {
   await UserModel.create({
     codigo: ADMIN_CODIGO,
     nombre: "Admin Test",
-    isAdmin: true,
+    role: "admin",
   });
 });
 

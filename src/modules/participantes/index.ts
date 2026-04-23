@@ -14,6 +14,7 @@ import {
 import { ParticipanteSchema } from "./schema";
 import { cookieSchema, sharedAuthResponses } from "../auth/common";
 import { AuthSchema } from "../auth/schema";
+import { auth } from "../auth";
 
 type AddParticipanteReason =
   | "not_found"
@@ -42,6 +43,7 @@ const addParticipanteErrorMap: Record<
 };
 
 export const participantes = new Elysia({ prefix: "/:id/participantes" })
+  .use(auth)
   .use(
     rateLimit({
       ...config.rateLimit,
@@ -52,12 +54,7 @@ export const participantes = new Elysia({ prefix: "/:id/participantes" })
   )
   .get(
     "/",
-    async ({ params: { id }, set, ...rest }) => {
-      const user = (rest as unknown as { user: { isAdmin: boolean } }).user;
-      if (!user.isAdmin) {
-        set.status = 403;
-        return AuthSchema.forbidden.const;
-      }
+    async ({ params: { id }, set }) => {
       const result = await listParticipantes(id);
       if (!result.success) {
         set.status = 404;
@@ -67,12 +64,14 @@ export const participantes = new Elysia({ prefix: "/:id/participantes" })
     },
     {
       auth: true,
+      authorizeEvent: ["admin", "eventManager"],
       cookie: cookieSchema,
       params: t.Object({ id: t.String() }),
       response: {
         200: ParticipanteSchema.participantesListResponse,
+        401: AuthSchema.unauthorized,
+        403: AuthSchema.forbidden,
         404: ParticipanteSchema.concursoNotFound,
-        ...sharedAuthResponses,
       },
     }
   )
@@ -126,12 +125,7 @@ export const participantes = new Elysia({ prefix: "/:id/participantes" })
   )
   .post(
     "/:participacionId/confirmacion-email",
-    async ({ params: { id, participacionId }, set, ...rest }) => {
-      const user = (rest as unknown as { user: { isAdmin: boolean } }).user;
-      if (!user.isAdmin) {
-        set.status = 403;
-        return AuthSchema.forbidden.const;
-      }
+    async ({ params: { id, participacionId }, set }) => {
       const outcome = await resendConfirmacionEmail(id, participacionId);
       if (!outcome.ok) {
         if (outcome.reason === "not_found") {
@@ -153,6 +147,7 @@ export const participantes = new Elysia({ prefix: "/:id/participantes" })
     },
     {
       auth: true,
+      authorize: "admin",
       cookie: cookieSchema,
       params: t.Object({ id: t.String(), participacionId: t.String() }),
       response: {
@@ -166,12 +161,7 @@ export const participantes = new Elysia({ prefix: "/:id/participantes" })
   )
   .delete(
     "/:participacionId",
-    async ({ params: { id, participacionId }, set, ...rest }) => {
-      const user = (rest as unknown as { user: { isAdmin: boolean } }).user;
-      if (!user.isAdmin) {
-        set.status = 403;
-        return AuthSchema.forbidden.const;
-      }
+    async ({ params: { id, participacionId }, set }) => {
       const result = await removeParticipante(id, participacionId);
       if (!result.success) {
         set.status = 404;
@@ -181,12 +171,14 @@ export const participantes = new Elysia({ prefix: "/:id/participantes" })
     },
     {
       auth: true,
+      authorize: "admin",
       cookie: cookieSchema,
       params: t.Object({ id: t.String(), participacionId: t.String() }),
       response: {
         204: t.Undefined(),
+        401: AuthSchema.unauthorized,
+        403: AuthSchema.forbidden,
         404: ParticipanteSchema.concursoNotFound,
-        ...sharedAuthResponses,
       },
     }
   );

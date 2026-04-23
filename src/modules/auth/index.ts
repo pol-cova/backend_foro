@@ -1,21 +1,22 @@
 import { Elysia, t, status } from "elysia";
 import { jwt } from "@elysiajs/jwt";
-import { login, register, listUsers, updateUser, deleteUser } from "./service";
+import { rateLimit } from "elysia-rate-limit";
+import { login, loginJudge, register, listUsers, updateUser, deleteUser } from "./service";
 import { config } from "../../config";
 import { captureMessage } from "../../lib/error-tracker";
 import { getCurrentRequestId } from "../../lib/logger";
 import { AuthSchema } from "./schema";
 import { cookieSchema } from "./common";
 
+export type AllowedRole = "admin" | "eventManager" | "judge";
+
 export const auth = new Elysia({ name: "auth", prefix: "/auth" })
   .use(jwt({ name: "jwt", secret: config.jwt.secret }))
-  .derive(({ request }) => {
-    const h = request.headers.get("authorization");
-    return { bearerToken: h?.startsWith("Bearer ") ? h.slice(7) : null };
-  })
   .macro({
     auth: {
-      async resolve({ cookie: { session }, jwt, bearerToken }) {
+      async resolve({ cookie: { session }, jwt, request }) {
+        const h = request.headers.get("authorization");
+        const bearerToken = h?.startsWith("Bearer ") ? h.slice(7) : null;
         const raw = bearerToken ?? session?.value;
         if (typeof raw !== "string") return status(401, AuthSchema.unauthorized.const);
         const user = await jwt.verify(raw);
@@ -23,6 +24,31 @@ export const auth = new Elysia({ name: "auth", prefix: "/auth" })
         return { user };
       },
     },
+    authorize: (roles: AllowedRole | AllowedRole[]) => ({
+      // Cast required: Elysia macro beforeHandle receives untyped context
+      beforeHandle: ((ctx: any) => {
+        const allowed = Array.isArray(roles) ? roles : [roles];
+        if (!ctx.user || !allowed.includes(ctx.user.role)) {
+          ctx.set.status = 403;
+          return AuthSchema.forbidden.const;
+        }
+      }) as any,
+    }),
+    authorizeEvent: (roles: AllowedRole | AllowedRole[]) => ({
+      // Cast required: Elysia macro beforeHandle receives untyped context
+      beforeHandle: ((ctx: any) => {
+        const allowed = Array.isArray(roles) ? roles : [roles];
+        if (!ctx.user || !allowed.includes(ctx.user.role)) {
+          ctx.set.status = 403;
+          return AuthSchema.forbidden.const;
+        }
+        if (ctx.user.role === "admin") return;
+        if (ctx.user.role === "eventManager" && ctx.user.managedEventoIds?.includes(ctx.params.id)) return;
+        if (ctx.user.role === "judge" && ctx.user.eventoId === ctx.params.id) return;
+        ctx.set.status = 403;
+        return AuthSchema.forbidden.const;
+      }) as any,
+    }),
   })
   .post(
     "/login",
@@ -33,17 +59,21 @@ export const auth = new Elysia({ name: "auth", prefix: "/auth" })
         set.status = forbidden ? 403 : 400;
         return forbidden ? AuthSchema.loginForbidden.const : AuthSchema.loginInvalid.const;
       }
-      const token = await jwt.sign({
+      const payload: Record<string, unknown> = {
         codigo: result.codigo,
         nombre: result.nombre,
-        isAdmin: result.isAdmin,
-      });
+        role: result.role,
+      };
+      if (result.managedEventoIds) {
+        payload.managedEventoIds = result.managedEventoIds;
+      }
+      const token = await jwt.sign(payload);
       session.set({
         value: token,
         httpOnly: true,
         path: "/",
       });
-      return { codigo: result.codigo, nombre: result.nombre, isAdmin: result.isAdmin, token };
+      return { codigo: result.codigo, nombre: result.nombre, role: result.role, token };
     },
     {
       body: AuthSchema.loginBody,
@@ -55,6 +85,47 @@ export const auth = new Elysia({ name: "auth", prefix: "/auth" })
       },
     }
   )
+  .use(
+    new Elysia()
+      .use(jwt({ name: "jwt", secret: config.jwt.secret }))
+      .use(
+        rateLimit({
+          max: 15,
+          duration: 15 * 60_000,
+          scoping: "scoped",
+        } as Parameters<typeof rateLimit>[0])
+      )
+      .post(
+        "/login/judge",
+        async ({ body, cookie: { session }, jwt, set }) => {
+          const result = await loginJudge(body);
+          if (!result.success) {
+            set.status = 400;
+            return AuthSchema.loginInvalid.const;
+          }
+          const token = await jwt.sign({
+            codigo: result.codigo,
+            nombre: result.nombre,
+            role: result.role,
+            eventoId: result.eventoId,
+          });
+          session.set({
+            value: token,
+            httpOnly: true,
+            path: "/",
+          });
+          return { codigo: result.codigo, nombre: result.nombre, role: result.role, token };
+        },
+        {
+          body: t.Object({ codigo: t.String(), pin: t.String() }),
+          cookie: cookieSchema,
+          response: {
+            200: AuthSchema.loginResponse,
+            400: AuthSchema.loginInvalid,
+          },
+        }
+      )
+  )
   .post(
     "/logout",
     async ({ cookie: { session }, set }) => {
@@ -65,11 +136,7 @@ export const auth = new Elysia({ name: "auth", prefix: "/auth" })
   )
   .post(
     "/register",
-    async ({ body, user, set }) => {
-      if (!user.isAdmin) {
-        set.status = 403;
-        return AuthSchema.forbidden.const;
-      }
+    async ({ body, set }) => {
       const result = await register(body);
       if (!result.success) {
         captureMessage("Auth user registration failed: user already exists", "warning", {
@@ -84,6 +151,7 @@ export const auth = new Elysia({ name: "auth", prefix: "/auth" })
     },
     {
       auth: true,
+      authorize: "admin",
       body: AuthSchema.registerBody,
       cookie: cookieSchema,
       response: {
@@ -96,15 +164,10 @@ export const auth = new Elysia({ name: "auth", prefix: "/auth" })
   )
   .get(
     "/users",
-    async ({ user, set }) => {
-      if (!user.isAdmin) {
-        set.status = 403;
-        return AuthSchema.forbidden.const;
-      }
-      return listUsers();
-    },
+    async () => listUsers(),
     {
       auth: true,
+      authorize: "admin",
       cookie: cookieSchema,
       response: {
         200: AuthSchema.usersListResponse,
@@ -115,11 +178,7 @@ export const auth = new Elysia({ name: "auth", prefix: "/auth" })
   )
   .patch(
     "/users/:codigo",
-    async ({ body, params: { codigo }, user, set }) => {
-      if (!user.isAdmin) {
-        set.status = 403;
-        return AuthSchema.forbidden.const;
-      }
+    async ({ body, params: { codigo }, set }) => {
       const result = await updateUser(codigo, body);
       if (!result.success) {
         set.status = 404;
@@ -129,6 +188,7 @@ export const auth = new Elysia({ name: "auth", prefix: "/auth" })
     },
     {
       auth: true,
+      authorize: "admin",
       body: AuthSchema.updateBody,
       cookie: cookieSchema,
       params: t.Object({ codigo: t.String() }),
@@ -142,11 +202,7 @@ export const auth = new Elysia({ name: "auth", prefix: "/auth" })
   )
   .delete(
     "/users/:codigo",
-    async ({ params: { codigo }, user, set }) => {
-      if (!user.isAdmin) {
-        set.status = 403;
-        return AuthSchema.forbidden.const;
-      }
+    async ({ params: { codigo }, set }) => {
       const result = await deleteUser(codigo);
       if (!result.success) {
         set.status = 404;
@@ -156,6 +212,7 @@ export const auth = new Elysia({ name: "auth", prefix: "/auth" })
     },
     {
       auth: true,
+      authorize: "admin",
       cookie: cookieSchema,
       params: t.Object({ codigo: t.String() }),
       response: { 204: t.Undefined(), 401: AuthSchema.unauthorized, 403: AuthSchema.forbidden, 404: AuthSchema.userNotFound },
