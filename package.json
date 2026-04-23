@@ -19,14 +19,15 @@
     "@sentry/bun": "^10.49.0",
     "@types/nodemailer": "^7.0.11",
     "backend_foro": ".",
+    "bcryptjs": "^3.0.2",
     "dotenv": "^17.3.1",
     "elysia": "^1.4.27",
-    "bcryptjs": "^3.0.2",
     "elysia-rate-limit": "^4.5.1",
     "mongoose": "^9.2.3",
     "nodemailer": "^8.0.1",
     "react": "^19.2.4",
-    "react-dom": "^19.2.4"
+    "react-dom": "^19.2.4",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@react-email/preview-server": "5.2.9",

@@ -104,7 +104,7 @@ describe("concursos", () => {
 });
 
 describe("participantes", () => {
-  it("registra participante en concurso minimal (SISPA real)", async () => {
+  it("registra participante en concurso minimal", async () => {
     const created = await create({
       nombre: "Concurso de Robotica",
       cupo: 60,
@@ -132,7 +132,7 @@ describe("participantes", () => {
     expect(result.participante?.campos).toEqual({});
   });
 
-  it("registra participante con sharedFields y campos (SISPA real)", async () => {
+  it("registra participante con sharedFields y campos", async () => {
     const created = await create({
       nombre: "Foro 2026",
       cupo: 50,
@@ -290,6 +290,7 @@ describe("participantes", () => {
           tipo: "modalidad_individual",
           nivel: "AVANZADO",
           semestre: 5,
+          campos: { correo: "test@example.com" },
         }),
       })
     );
@@ -298,14 +299,14 @@ describe("participantes", () => {
 
     expect(res.status).toBe(201);
     expect(captured).toHaveLength(1);
-    expect(captured[0].to).toContain("loadtest");
-    expect(captured[0].payload.nombre).toBe("Load Test loadtest-vu1-iter0");
+    expect(captured[0].to).toBe("test@example.com");
+    expect(captured[0].payload.nombre).toBe("loadtest-vu1-iter0");
     expect(captured[0].payload.concurso).toBe("Concurso Email Test");
     expect(captured[0].payload.tipo).toBe("modalidad_individual");
     expect(captured[0].payload.nivel).toBe("AVANZADO");
   });
 
-  itWithTesting("prefers campos.correo over SISPA when present", async () => {
+  itWithTesting("prefers campos.correo over default when present", async () => {
     const { setMailCapture, clearMailCapture } = await import("../src/modules/email/service");
     const captured: { to: string }[] = [];
     setMailCapture((e) => captured.push({ to: e.to }));
@@ -365,6 +366,7 @@ describe("participantes", () => {
           tipo: "modalidad_individual",
           nivel: "AVANZADO",
           semestre: 5,
+          campos: { correo: "test@example.com" },
         }),
       })
     );

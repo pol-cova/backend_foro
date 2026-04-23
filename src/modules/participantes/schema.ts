@@ -45,7 +45,6 @@ export const ParticipanteSchema = {
   nivelNoPermitido: t.Literal("Nivel not allowed for this concurso"),
   campoRequerido: t.Literal("Required field missing for this participation mode"),
   campoVacio: t.Literal("Field must not be empty"),
-  estudianteNoEncontrado: t.Literal("Estudiante no encontrado"),
   alreadyRegistered: t.Literal("Student already registered for this concurso"),
   payloadTooLarge: t.Literal("Too many registration fields"),
   participanteNotFound: t.Literal("Participante not found"),

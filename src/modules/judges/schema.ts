@@ -5,11 +5,13 @@ export const JudgeSchema = {
     codigo: t.String(),
     nombre: t.String(),
     eventoId: t.String(),
+    nivel: t.Optional(t.String()),
   }),
   createResponse: t.Object({
     codigo: t.String(),
     nombre: t.String(),
     eventoId: t.String(),
+    nivel: t.Optional(t.String()),
     pin: t.String(),
   }),
 
@@ -17,6 +19,7 @@ export const JudgeSchema = {
     codigo: t.String(),
     nombre: t.String(),
     eventoId: t.String(),
+    nivel: t.Optional(t.String()),
   }),
 
   judgesListResponse: t.Array(
@@ -24,12 +27,14 @@ export const JudgeSchema = {
       codigo: t.String(),
       nombre: t.String(),
       eventoId: t.String(),
+      nivel: t.Optional(t.String()),
     })
   ),
 
   updateBody: t.Object({
     nombre: t.Optional(t.String()),
     eventoId: t.Optional(t.String()),
+    nivel: t.Optional(t.String()),
   }),
 
   resetPinResponse: t.Object({

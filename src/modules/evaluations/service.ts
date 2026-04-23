@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import { RubricTemplateModel, EvaluationModel } from "./mongoose";
 import { ConcursoModel } from "../concursos/mongoose";
+import { JudgeModel } from "../judges/mongoose";
 import { mapConcursoToResponse } from "../concursos/mappers";
 import { broadcastScoreboardUpdate } from "./sse";
 import type { RubricTypes, EvaluationTypes } from "./schema";
@@ -147,10 +148,16 @@ export async function createEvaluation(data: EvaluationCreateData, judgeCodigo: 
   }
 
   // Validate participant exists in concurso
-  const participantExists = concurso.participantes.some(
+  const participant = concurso.participantes.find(
     (p) => p._id?.toString() === data.participantId
   );
-  if (!participantExists) return { success: false as const, reason: "participant_not_found" as const };
+  if (!participant) return { success: false as const, reason: "participant_not_found" as const };
+
+  // Validate judge level assignment
+  const judge = await JudgeModel.findOne({ codigo: judgeCodigo }).lean();
+  if (judge?.nivel && judge.nivel !== participant.nivel) {
+    return { success: false as const, reason: "level_mismatch" as const };
+  }
 
   try {
     const evaluation = await EvaluationModel.create({
@@ -223,8 +230,10 @@ interface ParticipantResult {
   participantNombre: string;
   nivel: string;
   evaluationsCount: number;
+  totalJudgesForLevel: number;
+  isComplete: boolean;
   criterionAverages: Array<{ criterionId: string; question: string; average: number }>;
-  finalScore: number;
+  finalScore: number | null;
 }
 
 export async function getResults(concursoId: string, nivel?: string) {
@@ -234,6 +243,16 @@ export async function getResults(concursoId: string, nivel?: string) {
   if (!concurso) return { success: false as const, reason: "not_found" as const };
 
   const evaluations = await EvaluationModel.find({ concursoId: new mongoose.Types.ObjectId(concursoId) }).lean();
+
+  // Count total judges per level for this concurso
+  const judgesForConcurso = await JudgeModel.find({ eventoId: concursoId }).lean();
+  const judgesPerLevel = new Map<string, number>();
+  for (const judge of judgesForConcurso) {
+    // Judges without a nivel are grouped under "__any__" so they don't
+    // count toward any specific level's total (legacy backward-compat)
+    const level = judge.nivel || "__any__";
+    judgesPerLevel.set(level, (judgesPerLevel.get(level) || 0) + 1);
+  }
 
   let participants = concurso.participantes;
   if (nivel) {
@@ -260,14 +279,21 @@ export async function getResults(concursoId: string, nivel?: string) {
 
     const evaluationsCount = participantEvaluations.length;
 
-    if (evaluationsCount === 0) {
+    // Total judges for this participant's level
+    const totalJudgesForLevel = judgesPerLevel.get(participant.nivel) || 0;
+    const hasLevelSpecificJudges = totalJudgesForLevel > 0;
+    const isComplete = hasLevelSpecificJudges ? evaluationsCount === totalJudgesForLevel : true;
+
+    if (!isComplete) {
       return {
         participantId: String(participant._id),
         participantNombre: participant.nombre,
         nivel: participant.nivel,
-        evaluationsCount: 0,
+        evaluationsCount,
+        totalJudgesForLevel,
+        isComplete: false,
         criterionAverages: [],
-        finalScore: 0,
+        finalScore: null,
       };
     }
 
@@ -289,13 +315,17 @@ export async function getResults(concursoId: string, nivel?: string) {
     }));
 
     // Calculate final score (average of total scores)
-    const finalScore = participantEvaluations.reduce((sum, e) => sum + e.totalScore, 0) / evaluationsCount;
+    const finalScore = evaluationsCount > 0
+      ? participantEvaluations.reduce((sum, e) => sum + e.totalScore, 0) / evaluationsCount
+      : 0;
 
     return {
       participantId: String(participant._id),
       participantNombre: participant.nombre,
       nivel: participant.nivel,
       evaluationsCount,
+      totalJudgesForLevel,
+      isComplete: true,
       criterionAverages,
       finalScore,
     };
@@ -308,8 +338,13 @@ export async function getScoreboard(concursoId: string, nivel?: string) {
   const result = await getResults(concursoId, nivel);
   if (!result.success) return result;
 
-  // Sort by finalScore descending
-  const sortedResults = [...result.results].sort((a, b) => b.finalScore - a.finalScore);
+  // Sort: completed entries first (by finalScore desc), then incomplete entries
+  const sortedResults = [...result.results].sort((a, b) => {
+    if (a.isComplete && !b.isComplete) return -1;
+    if (!a.isComplete && b.isComplete) return 1;
+    if (!a.isComplete && !b.isComplete) return 0;
+    return (b.finalScore || 0) - (a.finalScore || 0);
+  });
 
   return { success: true as const, results: sortedResults };
 }

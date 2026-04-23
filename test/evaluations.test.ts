@@ -53,8 +53,8 @@ describe("Evaluation System", () => {
     await RubricTemplateModel.deleteMany({});
     await EvaluationModel.deleteMany({});
     await ConcursoModel.deleteMany({});
-    await UserModel.deleteMany({ codigo: { $in: ["ADMIN01", "EVMGR01", "JUDGE01", "JUDGE02", "JUDGE03"] } });
-    await JudgeModel.deleteMany({ codigo: { $in: ["JUDGE01", "JUDGE02", "JUDGE03"] } });
+    await UserModel.deleteMany({ codigo: { $in: ["ADMIN01", "EVMGR01", "JUDGE01", "JUDGE02", "JUDGE03", "JUDGE04", "JUDGE05", "JUDGE06", "JUDGE07", "JUDGE08", "JUDGE09", "JUDGE10", "JUDGE11"] } });
+    await JudgeModel.deleteMany({ codigo: { $in: ["JUDGE01", "JUDGE02", "JUDGE03", "JUDGE04", "JUDGE05", "JUDGE06", "JUDGE07", "JUDGE08", "JUDGE09", "JUDGE10", "JUDGE11"] } });
 
     // Create admin user
     await UserModel.create({ codigo: "ADMIN01", nombre: "Admin Test", role: "admin" });
@@ -159,8 +159,8 @@ describe("Evaluation System", () => {
     await RubricTemplateModel.deleteMany({});
     await EvaluationModel.deleteMany({});
     await ConcursoModel.deleteMany({});
-    await UserModel.deleteMany({ codigo: { $in: ["ADMIN01", "EVMGR01", "JUDGE01", "JUDGE02", "JUDGE03"] } });
-    await JudgeModel.deleteMany({ codigo: { $in: ["JUDGE01", "JUDGE02", "JUDGE03"] } });
+    await UserModel.deleteMany({ codigo: { $in: ["ADMIN01", "EVMGR01", "JUDGE01", "JUDGE02", "JUDGE03", "JUDGE04", "JUDGE05", "JUDGE06", "JUDGE07", "JUDGE08", "JUDGE09", "JUDGE10", "JUDGE11"] } });
+    await JudgeModel.deleteMany({ codigo: { $in: ["JUDGE01", "JUDGE02", "JUDGE03", "JUDGE04", "JUDGE05", "JUDGE06", "JUDGE07", "JUDGE08", "JUDGE09", "JUDGE10", "JUDGE11"] } });
     await mongoose.disconnect();
   });
 
@@ -874,6 +874,455 @@ describe("Evaluation System", () => {
           scoreboard[i].finalScore
         );
       }
+    });
+  });
+
+  describe("Level-Assigned Judges", () => {
+    it("should allow judge with matching nivel to evaluate participant", async () => {
+      const judgeRes = await app.handle(
+        new Request("http://localhost/judges", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${adminToken}`,
+          },
+          body: JSON.stringify({
+            codigo: "JUDGE04",
+            nombre: "Judge Four",
+            eventoId: concursoId,
+            nivel: "Básico",
+          }),
+        })
+      );
+      const judgeData = await judgeRes.json();
+      const judge4Token = await createJudgeToken(app, "JUDGE04", judgeData.pin);
+
+      const evalRes = await app.handle(
+        new Request("http://localhost/evaluations", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${judge4Token}`,
+          },
+          body: JSON.stringify({
+            concursoId,
+            participantId,
+            scores: [
+              { criterionId: "c1", value: 7 },
+              { criterionId: "c2", value: 8 },
+            ],
+          }),
+        })
+      );
+
+      expect(evalRes.status).toBe(201);
+      const evalData = await evalRes.json();
+      expect(evalData.totalScore).toBe(15);
+      expect(evalData.judgeCodigo).toBe("JUDGE04");
+
+      await JudgeModel.deleteOne({ codigo: "JUDGE04" });
+      await EvaluationModel.deleteOne({ judgeCodigo: "JUDGE04", participantId });
+    });
+
+    it("should reject judge with mismatched nivel from evaluating participant", async () => {
+      const judgeRes = await app.handle(
+        new Request("http://localhost/judges", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${adminToken}`,
+          },
+          body: JSON.stringify({
+            codigo: "JUDGE05",
+            nombre: "Judge Five",
+            eventoId: concursoId,
+            nivel: "Intermedio",
+          }),
+        })
+      );
+      const judgeData = await judgeRes.json();
+      const judge5Token = await createJudgeToken(app, "JUDGE05", judgeData.pin);
+
+      const evalRes = await app.handle(
+        new Request("http://localhost/evaluations", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${judge5Token}`,
+          },
+          body: JSON.stringify({
+            concursoId,
+            participantId,
+            scores: [
+              { criterionId: "c1", value: 5 },
+              { criterionId: "c2", value: 5 },
+            ],
+          }),
+        })
+      );
+
+      expect(evalRes.status).toBe(403);
+      const message = await evalRes.text();
+      expect(message).toBe("Judge is not assigned to evaluate this level");
+
+      await JudgeModel.deleteOne({ codigo: "JUDGE05" });
+    });
+
+    it("should return null finalScore when not all level judges have evaluated", async () => {
+      const participantRes = await app.handle(
+        new Request(`http://localhost/concursos/${concursoId}/participantes`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${adminToken}`,
+          },
+          body: JSON.stringify({
+            tipo: "individual",
+            codigo: "STUDENT05",
+            nombre: "Student Five",
+            carrera: "ISC",
+            semestre: 3,
+            correo: "student5@test.com",
+            escuela: "CUCEI",
+            nivel: "Intermedio",
+            campos: { nombre_proyecto: "Fifth Project" },
+          }),
+        })
+      );
+      const participantData = await participantRes.json();
+      const participant5Id = participantData._id;
+
+      const judge1Res = await app.handle(
+        new Request("http://localhost/judges", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${adminToken}`,
+          },
+          body: JSON.stringify({
+            codigo: "JUDGE06",
+            nombre: "Judge Six",
+            eventoId: concursoId,
+            nivel: "Intermedio",
+          }),
+        })
+      );
+      const judge1Data = await judge1Res.json();
+      const judge6Token = await createJudgeToken(app, "JUDGE06", judge1Data.pin);
+
+      const judge2Res = await app.handle(
+        new Request("http://localhost/judges", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${adminToken}`,
+          },
+          body: JSON.stringify({
+            codigo: "JUDGE07",
+            nombre: "Judge Seven",
+            eventoId: concursoId,
+            nivel: "Intermedio",
+          }),
+        })
+      );
+      const judge2Data = await judge2Res.json();
+
+      const evalRes = await app.handle(
+        new Request("http://localhost/evaluations", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${judge6Token}`,
+          },
+          body: JSON.stringify({
+            concursoId,
+            participantId: participant5Id,
+            scores: [
+              { criterionId: "c1", value: 6 },
+              { criterionId: "c2", value: 7 },
+            ],
+          }),
+        })
+      );
+      expect(evalRes.status).toBe(201);
+
+      const resultsRes = await app.handle(
+        new Request(`http://localhost/concursos/${concursoId}/results`, {
+          headers: { Authorization: `Bearer ${adminToken}` },
+        })
+      );
+      expect(resultsRes.status).toBe(200);
+      const allResults = await resultsRes.json() as Array<{
+        participantId: string;
+        evaluationsCount: number;
+        totalJudgesForLevel: number;
+        isComplete: boolean;
+        finalScore: number | null;
+      }>;
+
+      const participant5Result = allResults.find(
+        (r) => r.participantId === participant5Id
+      );
+      expect(participant5Result).toBeDefined();
+      expect(participant5Result!.evaluationsCount).toBe(1);
+      expect(participant5Result!.totalJudgesForLevel).toBe(2);
+      expect(participant5Result!.isComplete).toBe(false);
+      expect(participant5Result!.finalScore).toBeNull();
+
+      await JudgeModel.deleteMany({ codigo: { $in: ["JUDGE06", "JUDGE07"] } });
+      await EvaluationModel.deleteOne({ judgeCodigo: "JUDGE06", participantId: participant5Id });
+    });
+
+    it("should compute finalScore when all level judges have evaluated", async () => {
+      const participantRes = await app.handle(
+        new Request(`http://localhost/concursos/${concursoId}/participantes`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${adminToken}`,
+          },
+          body: JSON.stringify({
+            tipo: "individual",
+            codigo: "STUDENT06",
+            nombre: "Student Six",
+            carrera: "ISC",
+            semestre: 4,
+            correo: "student6@test.com",
+            escuela: "CUCEI",
+            nivel: "Intermedio",
+            campos: { nombre_proyecto: "Sixth Project" },
+          }),
+        })
+      );
+      const participantData = await participantRes.json();
+      const participant6Id = participantData._id;
+
+      const judge1Res = await app.handle(
+        new Request("http://localhost/judges", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${adminToken}`,
+          },
+          body: JSON.stringify({
+            codigo: "JUDGE08",
+            nombre: "Judge Eight",
+            eventoId: concursoId,
+            nivel: "Intermedio",
+          }),
+        })
+      );
+      const judge1Data = await judge1Res.json();
+      const judge8Token = await createJudgeToken(app, "JUDGE08", judge1Data.pin);
+
+      const judge2Res = await app.handle(
+        new Request("http://localhost/judges", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${adminToken}`,
+          },
+          body: JSON.stringify({
+            codigo: "JUDGE09",
+            nombre: "Judge Nine",
+            eventoId: concursoId,
+            nivel: "Intermedio",
+          }),
+        })
+      );
+      const judge2Data = await judge2Res.json();
+      const judge9Token = await createJudgeToken(app, "JUDGE09", judge2Data.pin);
+
+      const eval1Res = await app.handle(
+        new Request("http://localhost/evaluations", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${judge8Token}`,
+          },
+          body: JSON.stringify({
+            concursoId,
+            participantId: participant6Id,
+            scores: [
+              { criterionId: "c1", value: 5 },
+              { criterionId: "c2", value: 6 },
+            ],
+          }),
+        })
+      );
+      expect(eval1Res.status).toBe(201);
+
+      const eval2Res = await app.handle(
+        new Request("http://localhost/evaluations", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${judge9Token}`,
+          },
+          body: JSON.stringify({
+            concursoId,
+            participantId: participant6Id,
+            scores: [
+              { criterionId: "c1", value: 7 },
+              { criterionId: "c2", value: 8 },
+            ],
+          }),
+        })
+      );
+      expect(eval2Res.status).toBe(201);
+
+      const resultsRes = await app.handle(
+        new Request(`http://localhost/concursos/${concursoId}/results`, {
+          headers: { Authorization: `Bearer ${adminToken}` },
+        })
+      );
+      expect(resultsRes.status).toBe(200);
+      const allResults = await resultsRes.json() as Array<{
+        participantId: string;
+        evaluationsCount: number;
+        totalJudgesForLevel: number;
+        isComplete: boolean;
+        finalScore: number | null;
+        criterionAverages: Array<{ criterionId: string; average: number }>;
+      }>;
+
+      const participant6Result = allResults.find(
+        (r) => r.participantId === participant6Id
+      );
+      expect(participant6Result).toBeDefined();
+      expect(participant6Result!.evaluationsCount).toBe(2);
+      expect(participant6Result!.totalJudgesForLevel).toBe(2);
+      expect(participant6Result!.isComplete).toBe(true);
+      // finalScore = (11 + 15) / 2 = 13
+      expect(participant6Result!.finalScore).toBe(13);
+
+      const c1Avg = participant6Result!.criterionAverages.find(
+        (c) => c.criterionId === "c1"
+      );
+      expect(c1Avg).toBeDefined();
+      // c1 average = (5 + 7) / 2 = 6
+      expect(c1Avg!.average).toBe(6);
+
+      const c2Avg = participant6Result!.criterionAverages.find(
+        (c) => c.criterionId === "c2"
+      );
+      expect(c2Avg).toBeDefined();
+      // c2 average = (6 + 8) / 2 = 7
+      expect(c2Avg!.average).toBe(7);
+
+      await JudgeModel.deleteMany({ codigo: { $in: ["JUDGE08", "JUDGE09"] } });
+      await EvaluationModel.deleteMany({ participantId: participant6Id });
+    });
+
+    it("should sort scoreboard with incomplete entries at the bottom", async () => {
+      const participantRes = await app.handle(
+        new Request(`http://localhost/concursos/${concursoId}/participantes`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${adminToken}`,
+          },
+          body: JSON.stringify({
+            tipo: "individual",
+            codigo: "STUDENT07",
+            nombre: "Student Seven",
+            carrera: "ISC",
+            semestre: 2,
+            correo: "student7@test.com",
+            escuela: "CUCEI",
+            nivel: "Básico",
+            campos: { nombre_proyecto: "Seventh Project" },
+          }),
+        })
+      );
+      const participantData = await participantRes.json();
+      const participant7Id = participantData._id;
+
+      const judge1Res = await app.handle(
+        new Request("http://localhost/judges", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${adminToken}`,
+          },
+          body: JSON.stringify({
+            codigo: "JUDGE10",
+            nombre: "Judge Ten",
+            eventoId: concursoId,
+            nivel: "Básico",
+          }),
+        })
+      );
+      const judge1Data = await judge1Res.json();
+      const judge10Token = await createJudgeToken(app, "JUDGE10", judge1Data.pin);
+
+      const judge2Res = await app.handle(
+        new Request("http://localhost/judges", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${adminToken}`,
+          },
+          body: JSON.stringify({
+            codigo: "JUDGE11",
+            nombre: "Judge Eleven",
+            eventoId: concursoId,
+            nivel: "Básico",
+          }),
+        })
+      );
+      const judge2Data = await judge2Res.json();
+
+      const evalRes = await app.handle(
+        new Request("http://localhost/evaluations", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${judge10Token}`,
+          },
+          body: JSON.stringify({
+            concursoId,
+            participantId: participant7Id,
+            scores: [
+              { criterionId: "c1", value: 10 },
+              { criterionId: "c2", value: 10 },
+            ],
+          }),
+        })
+      );
+      expect(evalRes.status).toBe(201);
+
+      const scoreboardRes = await app.handle(
+        new Request(`http://localhost/concursos/${concursoId}/scoreboard`, {
+          headers: { Authorization: `Bearer ${adminToken}` },
+        })
+      );
+      expect(scoreboardRes.status).toBe(200);
+      const scoreboard = await scoreboardRes.json() as Array<{
+        participantId: string;
+        isComplete: boolean;
+        finalScore: number | null;
+      }>;
+
+      const incompleteEntry = scoreboard.find(
+        (r) => r.participantId === participant7Id
+      );
+      expect(incompleteEntry).toBeDefined();
+      expect(incompleteEntry!.isComplete).toBe(false);
+      expect(incompleteEntry!.finalScore).toBeNull();
+
+      let foundIncomplete = false;
+      for (const entry of scoreboard) {
+        if (!entry.isComplete) {
+          foundIncomplete = true;
+        }
+        if (entry.isComplete) {
+          expect(foundIncomplete).toBe(false);
+        }
+      }
+
+      await JudgeModel.deleteMany({ codigo: { $in: ["JUDGE10", "JUDGE11"] } });
+      await EvaluationModel.deleteOne({ judgeCodigo: "JUDGE10", participantId: participant7Id });
     });
   });
 });

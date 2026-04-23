@@ -4,6 +4,7 @@ export interface Judge {
   codigo: string;
   nombre: string;
   eventoId: string;
+  nivel?: string;
   pinHash: string;
   createdAt: Date;
   updatedAt: Date;
@@ -14,6 +15,7 @@ const judgeSchema = new mongoose.Schema<Judge>(
     codigo: { type: String, required: true, unique: true },
     nombre: { type: String, required: true },
     eventoId: { type: String, required: true },
+    nivel: { type: String },
     pinHash: { type: String, required: true },
   },
   { timestamps: true }
