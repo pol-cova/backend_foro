@@ -138,7 +138,6 @@ const evaluationRoutes = new Elysia({ prefix: "/evaluations" })
           participant_not_found: { status: 404, message: "Participant not found" },
           no_rubric: { status: 400, message: EvaluationSchema.noRubric.const },
           rubric_not_found: { status: 400, message: "Rubric template not found" },
-          rubric_not_allowed: { status: 400, message: EvaluationSchema.rubricNotAllowed.const },
           invalid_scores: { status: 400, message: EvaluationSchema.invalidScores.const },
           level_mismatch: { status: 403, message: "Judge is not assigned to evaluate this level" },
           conflict: { status: 409, message: EvaluationSchema.conflict.const },
@@ -162,7 +161,7 @@ const evaluationRoutes = new Elysia({ prefix: "/evaluations" })
       response: {
         ...sharedAuthResponses,
         201: EvaluationSchema.evaluationResponse,
-        400: t.Union([EvaluationSchema.noRubric, EvaluationSchema.invalidScores, EvaluationSchema.rubricNotAllowed]),
+        400: t.Union([EvaluationSchema.noRubric, EvaluationSchema.invalidScores]),
         403: t.Union([AuthSchema.forbidden, t.Literal("Judge is not assigned to evaluate this level")]),
         404: t.Union([t.Literal("Concurso not found"), t.Literal("Participant not found")]),
         409: EvaluationSchema.conflict,
@@ -204,7 +203,7 @@ const resultsRoutes = new Elysia({ prefix: "/concursos" })
         set.status = 404;
         return "Concurso not found";
       }
-      return { rubrics: result.rubrics, mode: result.mode };
+      return { rubric: result.rubric };
     },
     {
       auth: true,
@@ -213,15 +212,14 @@ const resultsRoutes = new Elysia({ prefix: "/concursos" })
       params: t.Object({ id: t.String() }),
       response: {
         200: t.Object({
-          rubrics: t.Array(
+          rubric: t.Union([
             t.Object({
-              label: t.String(),
               templateId: t.String(),
               name: t.String(),
               sections: t.Array(RubricSchema.rubricResponse.properties.sections.items),
-            })
-          ),
-          mode: t.Union([t.Literal("multi"), t.Literal("legacy"), t.Literal("none")]),
+            }),
+            t.Null(),
+          ]),
         }),
         401: AuthSchema.unauthorized,
         403: AuthSchema.forbidden,

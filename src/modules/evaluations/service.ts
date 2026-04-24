@@ -98,97 +98,26 @@ export async function detachRubricFromConcurso(concursoId: string) {
   return { success: true as const, concurso: mapConcursoToResponse(concurso.toObject()) };
 }
 
-export async function assignRubricsToConcurso(
-  concursoId: string,
-  rubrics: Array<{ label: string; templateId: string }>
-) {
-  if (!mongoose.isValidObjectId(concursoId)) return { success: false as const, reason: "concurso_not_found" as const };
-
-  // Validate all templateIds exist
-  for (const rubric of rubrics) {
-    if (!mongoose.isValidObjectId(rubric.templateId)) {
-      return { success: false as const, reason: "rubric_not_found" as const };
-    }
-    const exists = await RubricTemplateModel.findById(rubric.templateId).lean();
-    if (!exists) return { success: false as const, reason: "rubric_not_found" as const };
-  }
-
-  const concurso = await ConcursoModel.findByIdAndUpdate(
-    concursoId,
-    {
-      $set: {
-        assignedRubrics: rubrics.map((r) => ({
-          label: r.label,
-          templateId: new mongoose.Types.ObjectId(r.templateId),
-        })),
-        rubricTemplateId: null,
-      },
-    },
-    { returnDocument: "after", runValidators: true }
-  );
-  if (!concurso) return { success: false as const, reason: "concurso_not_found" as const };
-
-  return { success: true as const, concurso: mapConcursoToResponse(concurso.toObject()) };
-}
-
 export async function getConcursoRubrics(concursoId: string) {
   if (!mongoose.isValidObjectId(concursoId)) return { success: false as const, reason: "concurso_not_found" as const };
 
   const concurso = await ConcursoModel.findById(concursoId).lean();
   if (!concurso) return { success: false as const, reason: "concurso_not_found" as const };
 
-  // Multi-rubric mode
-  if (concurso.assignedRubrics && concurso.assignedRubrics.length > 0) {
-    const templateIds = concurso.assignedRubrics.map((r) => r.templateId);
-    const rubrics = await RubricTemplateModel.find({ _id: { $in: templateIds } }).select("-__v").lean();
-
-    const rubricMap = new Map(rubrics.map((r) => [String(r._id), r]));
-
-    const assigned = concurso.assignedRubrics.map((ar) => {
-      const rubric = rubricMap.get(String(ar.templateId));
-      return {
-        label: ar.label,
-        templateId: String(ar.templateId),
-        name: rubric?.name || "Unknown",
-        sections: rubric?.sections || [],
-      };
-    });
-
-    return { success: true as const, rubrics: assigned, mode: "multi" as const };
-  }
-
-  // Legacy single-rubric mode
   if (concurso.rubricTemplateId) {
     const rubric = await RubricTemplateModel.findById(concurso.rubricTemplateId).select("-__v").lean();
-    if (!rubric) return { success: true as const, rubrics: [], mode: "legacy" as const };
+    if (!rubric) return { success: true as const, rubric: null };
     return {
       success: true as const,
-      rubrics: [
-        {
-          label: "Default",
-          templateId: String(rubric._id),
-          name: rubric.name,
-          sections: rubric.sections,
-        },
-      ],
-      mode: "legacy" as const,
+      rubric: {
+        templateId: String(rubric._id),
+        name: rubric.name,
+        sections: rubric.sections,
+      },
     };
   }
 
-  return { success: true as const, rubrics: [], mode: "none" as const };
-}
-
-export async function clearAssignedRubrics(concursoId: string) {
-  if (!mongoose.isValidObjectId(concursoId)) return { success: false as const, reason: "concurso_not_found" as const };
-
-  const concurso = await ConcursoModel.findByIdAndUpdate(
-    concursoId,
-    { $set: { assignedRubrics: [] } },
-    { returnDocument: "after", runValidators: true }
-  );
-  if (!concurso) return { success: false as const, reason: "concurso_not_found" as const };
-
-  return { success: true as const, concurso: mapConcursoToResponse(concurso.toObject()) };
+  return { success: true as const, rubric: null };
 }
 
 export async function createEvaluation(data: EvaluationCreateData, judgeCodigo: string) {
@@ -198,29 +127,11 @@ export async function createEvaluation(data: EvaluationCreateData, judgeCodigo: 
   const concurso = await ConcursoModel.findById(data.concursoId).lean();
   if (!concurso) return { success: false as const, reason: "concurso_not_found" as const };
 
-  // Determine which rubric to use
-  let selectedRubricTemplateId: mongoose.Types.ObjectId;
-  const hasMultiRubrics = concurso.assignedRubrics && concurso.assignedRubrics.length > 0;
-
-  if (hasMultiRubrics) {
-    // Multi-rubric mode: rubricTemplateId is required
-    if (!data.rubricTemplateId || !mongoose.isValidObjectId(data.rubricTemplateId)) {
-      return { success: false as const, reason: "no_rubric" as const };
-    }
-    // Validate the rubric is assigned to this concurso
-    const isAssigned = concurso.assignedRubrics!.some(
-      (ar) => ar.templateId.toString() === data.rubricTemplateId
-    );
-    if (!isAssigned) {
-      return { success: false as const, reason: "rubric_not_allowed" as const };
-    }
-    selectedRubricTemplateId = new mongoose.Types.ObjectId(data.rubricTemplateId);
-  } else if (concurso.rubricTemplateId) {
-    // Legacy single-rubric mode
-    selectedRubricTemplateId = concurso.rubricTemplateId;
-  } else {
+  // Each concurso has exactly one rubric
+  if (!concurso.rubricTemplateId) {
     return { success: false as const, reason: "no_rubric" as const };
   }
+  const selectedRubricTemplateId = concurso.rubricTemplateId;
 
   const rubric = await RubricTemplateModel.findById(selectedRubricTemplateId).lean();
   if (!rubric) return { success: false as const, reason: "rubric_not_found" as const };
