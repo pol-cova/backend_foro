@@ -14,11 +14,10 @@ import {
   listConcursoEvaluations,
   getResults,
   getScoreboard,
+  getConcursoRubrics,
 } from "./service";
 import { addScoreboardListener, removeScoreboardListener } from "./sse";
 import { exportParticipants, exportEvaluations } from "./export-service";
-
-// ─── Rubric Template Routes ───
 
 const rubrics = new Elysia({ prefix: "/rubrics" })
   .use(auth)
@@ -121,8 +120,6 @@ const rubrics = new Elysia({ prefix: "/rubrics" })
     }
   );
 
-// ─── Evaluation Routes ───
-
 const evaluationRoutes = new Elysia({ prefix: "/evaluations" })
   .use(auth)
   .post(
@@ -141,6 +138,7 @@ const evaluationRoutes = new Elysia({ prefix: "/evaluations" })
           participant_not_found: { status: 404, message: "Participant not found" },
           no_rubric: { status: 400, message: EvaluationSchema.noRubric.const },
           rubric_not_found: { status: 400, message: "Rubric template not found" },
+          rubric_not_allowed: { status: 400, message: EvaluationSchema.rubricNotAllowed.const },
           invalid_scores: { status: 400, message: EvaluationSchema.invalidScores.const },
           level_mismatch: { status: 403, message: "Judge is not assigned to evaluate this level" },
           conflict: { status: 409, message: EvaluationSchema.conflict.const },
@@ -164,7 +162,7 @@ const evaluationRoutes = new Elysia({ prefix: "/evaluations" })
       response: {
         ...sharedAuthResponses,
         201: EvaluationSchema.evaluationResponse,
-        400: t.Union([EvaluationSchema.noRubric, EvaluationSchema.invalidScores]),
+        400: t.Union([EvaluationSchema.noRubric, EvaluationSchema.invalidScores, EvaluationSchema.rubricNotAllowed]),
         403: t.Union([AuthSchema.forbidden, t.Literal("Judge is not assigned to evaluate this level")]),
         404: t.Union([t.Literal("Concurso not found"), t.Literal("Participant not found")]),
         409: EvaluationSchema.conflict,
@@ -196,10 +194,41 @@ const evaluationRoutes = new Elysia({ prefix: "/evaluations" })
     }
   );
 
-// ─── Results & Scoreboard Routes ───
-
 const resultsRoutes = new Elysia({ prefix: "/concursos" })
   .use(auth)
+  .get(
+    "/:id/available-rubrics",
+    async ({ params: { id }, set }) => {
+      const result = await getConcursoRubrics(id);
+      if (!result.success) {
+        set.status = 404;
+        return "Concurso not found";
+      }
+      return { rubrics: result.rubrics, mode: result.mode };
+    },
+    {
+      auth: true,
+      authorizeEvent: ["admin", "eventManager", "judge"],
+      cookie: cookieSchema,
+      params: t.Object({ id: t.String() }),
+      response: {
+        200: t.Object({
+          rubrics: t.Array(
+            t.Object({
+              label: t.String(),
+              templateId: t.String(),
+              name: t.String(),
+              sections: t.Array(RubricSchema.rubricResponse.properties.sections.items),
+            })
+          ),
+          mode: t.Union([t.Literal("multi"), t.Literal("legacy"), t.Literal("none")]),
+        }),
+        401: AuthSchema.unauthorized,
+        403: AuthSchema.forbidden,
+        404: t.Literal("Concurso not found"),
+      },
+    }
+  )
   .get(
     "/:id/evaluations",
     async ({ params: { id }, set }) => {

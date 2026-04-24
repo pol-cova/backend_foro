@@ -10,8 +10,6 @@ type RubricCreateData = RubricTypes["createBody"];
 type RubricUpdateData = RubricTypes["updateBody"];
 type EvaluationCreateData = EvaluationTypes["createBody"];
 
-// ─── Rubric Template Service ───
-
 interface RubricTemplateDoc {
   _id: mongoose.Types.ObjectId;
   name: string;
@@ -70,8 +68,6 @@ export async function deleteRubric(id: string) {
   return { success: true as const };
 }
 
-// ─── Concurso Rubric Attachment ───
-
 export async function attachRubricToConcurso(concursoId: string, rubricTemplateId: string) {
   if (!mongoose.isValidObjectId(concursoId)) return { success: false as const, reason: "concurso_not_found" as const };
   if (!mongoose.isValidObjectId(rubricTemplateId)) return { success: false as const, reason: "rubric_not_found" as const };
@@ -102,7 +98,98 @@ export async function detachRubricFromConcurso(concursoId: string) {
   return { success: true as const, concurso: mapConcursoToResponse(concurso.toObject()) };
 }
 
-// ─── Evaluation Service ───
+export async function assignRubricsToConcurso(
+  concursoId: string,
+  rubrics: Array<{ label: string; templateId: string }>
+) {
+  if (!mongoose.isValidObjectId(concursoId)) return { success: false as const, reason: "concurso_not_found" as const };
+
+  // Validate all templateIds exist
+  for (const rubric of rubrics) {
+    if (!mongoose.isValidObjectId(rubric.templateId)) {
+      return { success: false as const, reason: "rubric_not_found" as const };
+    }
+    const exists = await RubricTemplateModel.findById(rubric.templateId).lean();
+    if (!exists) return { success: false as const, reason: "rubric_not_found" as const };
+  }
+
+  const concurso = await ConcursoModel.findByIdAndUpdate(
+    concursoId,
+    {
+      $set: {
+        assignedRubrics: rubrics.map((r) => ({
+          label: r.label,
+          templateId: new mongoose.Types.ObjectId(r.templateId),
+        })),
+        rubricTemplateId: null,
+      },
+    },
+    { returnDocument: "after", runValidators: true }
+  );
+  if (!concurso) return { success: false as const, reason: "concurso_not_found" as const };
+
+  return { success: true as const, concurso: mapConcursoToResponse(concurso.toObject()) };
+}
+
+export async function getConcursoRubrics(concursoId: string) {
+  if (!mongoose.isValidObjectId(concursoId)) return { success: false as const, reason: "concurso_not_found" as const };
+
+  const concurso = await ConcursoModel.findById(concursoId).lean();
+  if (!concurso) return { success: false as const, reason: "concurso_not_found" as const };
+
+  // Multi-rubric mode
+  if (concurso.assignedRubrics && concurso.assignedRubrics.length > 0) {
+    const templateIds = concurso.assignedRubrics.map((r) => r.templateId);
+    const rubrics = await RubricTemplateModel.find({ _id: { $in: templateIds } }).select("-__v").lean();
+
+    const rubricMap = new Map(rubrics.map((r) => [String(r._id), r]));
+
+    const assigned = concurso.assignedRubrics.map((ar) => {
+      const rubric = rubricMap.get(String(ar.templateId));
+      return {
+        label: ar.label,
+        templateId: String(ar.templateId),
+        name: rubric?.name || "Unknown",
+        sections: rubric?.sections || [],
+      };
+    });
+
+    return { success: true as const, rubrics: assigned, mode: "multi" as const };
+  }
+
+  // Legacy single-rubric mode
+  if (concurso.rubricTemplateId) {
+    const rubric = await RubricTemplateModel.findById(concurso.rubricTemplateId).select("-__v").lean();
+    if (!rubric) return { success: true as const, rubrics: [], mode: "legacy" as const };
+    return {
+      success: true as const,
+      rubrics: [
+        {
+          label: "Default",
+          templateId: String(rubric._id),
+          name: rubric.name,
+          sections: rubric.sections,
+        },
+      ],
+      mode: "legacy" as const,
+    };
+  }
+
+  return { success: true as const, rubrics: [], mode: "none" as const };
+}
+
+export async function clearAssignedRubrics(concursoId: string) {
+  if (!mongoose.isValidObjectId(concursoId)) return { success: false as const, reason: "concurso_not_found" as const };
+
+  const concurso = await ConcursoModel.findByIdAndUpdate(
+    concursoId,
+    { $set: { assignedRubrics: [] } },
+    { returnDocument: "after", runValidators: true }
+  );
+  if (!concurso) return { success: false as const, reason: "concurso_not_found" as const };
+
+  return { success: true as const, concurso: mapConcursoToResponse(concurso.toObject()) };
+}
 
 export async function createEvaluation(data: EvaluationCreateData, judgeCodigo: string) {
   if (!mongoose.isValidObjectId(data.concursoId)) return { success: false as const, reason: "concurso_not_found" as const };
@@ -111,9 +198,31 @@ export async function createEvaluation(data: EvaluationCreateData, judgeCodigo: 
   const concurso = await ConcursoModel.findById(data.concursoId).lean();
   if (!concurso) return { success: false as const, reason: "concurso_not_found" as const };
 
-  if (!concurso.rubricTemplateId) return { success: false as const, reason: "no_rubric" as const };
+  // Determine which rubric to use
+  let selectedRubricTemplateId: mongoose.Types.ObjectId;
+  const hasMultiRubrics = concurso.assignedRubrics && concurso.assignedRubrics.length > 0;
 
-  const rubric = await RubricTemplateModel.findById(concurso.rubricTemplateId).lean();
+  if (hasMultiRubrics) {
+    // Multi-rubric mode: rubricTemplateId is required
+    if (!data.rubricTemplateId || !mongoose.isValidObjectId(data.rubricTemplateId)) {
+      return { success: false as const, reason: "no_rubric" as const };
+    }
+    // Validate the rubric is assigned to this concurso
+    const isAssigned = concurso.assignedRubrics!.some(
+      (ar) => ar.templateId.toString() === data.rubricTemplateId
+    );
+    if (!isAssigned) {
+      return { success: false as const, reason: "rubric_not_allowed" as const };
+    }
+    selectedRubricTemplateId = new mongoose.Types.ObjectId(data.rubricTemplateId);
+  } else if (concurso.rubricTemplateId) {
+    // Legacy single-rubric mode
+    selectedRubricTemplateId = concurso.rubricTemplateId;
+  } else {
+    return { success: false as const, reason: "no_rubric" as const };
+  }
+
+  const rubric = await RubricTemplateModel.findById(selectedRubricTemplateId).lean();
   if (!rubric) return { success: false as const, reason: "rubric_not_found" as const };
 
   // Build a map of all criteria from the rubric
@@ -164,6 +273,7 @@ export async function createEvaluation(data: EvaluationCreateData, judgeCodigo: 
       concursoId: new mongoose.Types.ObjectId(data.concursoId),
       judgeCodigo,
       participantId: new mongoose.Types.ObjectId(data.participantId),
+      rubricTemplateId: selectedRubricTemplateId,
       scores: data.scores,
       totalScore,
       notes: data.notes,
@@ -186,6 +296,7 @@ interface EvaluationDoc {
   concursoId: mongoose.Types.ObjectId;
   judgeCodigo: string;
   participantId: mongoose.Types.ObjectId;
+  rubricTemplateId: mongoose.Types.ObjectId;
   scores: unknown;
   totalScore: number;
   notes?: string;
@@ -199,6 +310,7 @@ function mapEvaluationToResponse(evaluation: EvaluationDoc) {
     concursoId: String(evaluation.concursoId),
     judgeCodigo: evaluation.judgeCodigo,
     participantId: String(evaluation.participantId),
+    rubricTemplateId: String(evaluation.rubricTemplateId),
     scores: evaluation.scores,
     totalScore: evaluation.totalScore,
     notes: evaluation.notes,
@@ -223,8 +335,6 @@ export async function listConcursoEvaluations(concursoId: string) {
   return { success: true as const, evaluations: evaluations.map(mapEvaluationToResponse) };
 }
 
-// ─── Results & Scoreboard ───
-
 interface ParticipantResult {
   participantId: string;
   participantNombre: string;
@@ -234,6 +344,7 @@ interface ParticipantResult {
   isComplete: boolean;
   criterionAverages: Array<{ criterionId: string; question: string; average: number }>;
   finalScore: number | null;
+  rubricTemplateId?: string;
 }
 
 export async function getResults(concursoId: string, nivel?: string) {
@@ -259,17 +370,25 @@ export async function getResults(concursoId: string, nivel?: string) {
     participants = participants.filter((p) => p.nivel === nivel);
   }
 
-  // Get rubric for criterion metadata
-  let criteriaQuestions = new Map<string, string>();
-  if (concurso.rubricTemplateId) {
-    const rubric = await RubricTemplateModel.findById(concurso.rubricTemplateId).lean();
-    if (rubric) {
-      for (const section of rubric.sections) {
-        for (const criterion of section.criteria) {
-          criteriaQuestions.set(criterion.id, criterion.question);
-        }
+  // Load all rubrics that were used in evaluations for criterion metadata and max scores
+  const usedRubricIds = [...new Set(evaluations.map((e) => e.rubricTemplateId?.toString()).filter(Boolean))];
+  const rubrics = usedRubricIds.length > 0
+    ? await RubricTemplateModel.find({ _id: { $in: usedRubricIds.map((id) => new mongoose.Types.ObjectId(id)) } }).lean()
+    : [];
+
+  const rubricMap = new Map<string, { sections: any[]; maxPossible: number }>();
+  const criteriaQuestions = new Map<string, string>();
+
+  for (const rubric of rubrics) {
+    const rubricId = String(rubric._id);
+    let maxPossible = 0;
+    for (const section of rubric.sections) {
+      for (const criterion of section.criteria) {
+        maxPossible += criterion.maxScore;
+        criteriaQuestions.set(criterion.id, criterion.question);
       }
     }
+    rubricMap.set(rubricId, { sections: rubric.sections, maxPossible });
   }
 
   const results: ParticipantResult[] = participants.map((participant) => {
@@ -314,10 +433,27 @@ export async function getResults(concursoId: string, nivel?: string) {
       average: scores.reduce((a, b) => a + b, 0) / scores.length,
     }));
 
-    // Calculate final score (average of total scores)
-    const finalScore = evaluationsCount > 0
-      ? participantEvaluations.reduce((sum, e) => sum + e.totalScore, 0) / evaluationsCount
-      : 0;
+    // Calculate final score as normalized percentage
+    // Each evaluation's totalScore is converted to a percentage of its rubric's max possible
+    // Then we average those percentages
+    let totalPercentage = 0;
+    let validEvaluations = 0;
+    let primaryRubricTemplateId: string | undefined;
+
+    for (const evaluation of participantEvaluations) {
+      const rubricId = evaluation.rubricTemplateId?.toString();
+      if (!rubricId) continue;
+      if (!primaryRubricTemplateId) primaryRubricTemplateId = rubricId;
+
+      const rubricInfo = rubricMap.get(rubricId);
+      if (rubricInfo && rubricInfo.maxPossible > 0) {
+        const percentage = (evaluation.totalScore / rubricInfo.maxPossible) * 100;
+        totalPercentage += percentage;
+        validEvaluations++;
+      }
+    }
+
+    const finalScore = validEvaluations > 0 ? totalPercentage / validEvaluations : 0;
 
     return {
       participantId: String(participant._id),
@@ -328,6 +464,7 @@ export async function getResults(concursoId: string, nivel?: string) {
       isComplete: true,
       criterionAverages,
       finalScore,
+      rubricTemplateId: primaryRubricTemplateId,
     };
   });
 

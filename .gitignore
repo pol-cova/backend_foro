@@ -51,6 +51,7 @@ agents/
 hooks/
 AGENTS.md
 .internals/
+docs/
 
 # references
 references/

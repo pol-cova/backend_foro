@@ -1,5 +1,10 @@
 import mongoose from "mongoose";
 
+export interface AssignedRubric {
+  label: string;
+  templateId: mongoose.Types.ObjectId;
+}
+
 export interface ConstraintConfig {
   id: string;
   field?: string;
@@ -34,9 +39,18 @@ export interface Concurso {
   participantes: Participante[];
   allowMultiple?: boolean;
   rubricTemplateId?: mongoose.Types.ObjectId;
+  assignedRubrics?: AssignedRubric[];
   createdAt?: Date;
   updatedAt?: Date;
 }
+
+const assignedRubricSchema = new mongoose.Schema<AssignedRubric>(
+  {
+    label: { type: String, required: true },
+    templateId: { type: mongoose.Schema.Types.ObjectId, required: true, ref: "RubricTemplate" },
+  },
+  { _id: false }
+);
 
 const constraintSchema = new mongoose.Schema<ConstraintConfig>(
   {
@@ -78,6 +92,7 @@ const concursoSchema = new mongoose.Schema<Concurso>(
     participantes: { type: [participanteSchema], default: [] },
     allowMultiple: { type: Boolean, default: false },
     rubricTemplateId: { type: mongoose.Schema.Types.ObjectId, ref: "RubricTemplate" },
+    assignedRubrics: { type: [assignedRubricSchema], default: [] },
   },
   { timestamps: true }
 );
