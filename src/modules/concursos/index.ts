@@ -5,9 +5,6 @@ import { create, list, getById, update, deleteConcurso } from "./service";
 import {
   attachRubricToConcurso,
   detachRubricFromConcurso,
-  assignRubricsToConcurso,
-  getConcursoRubrics,
-  clearAssignedRubrics,
 } from "../evaluations/service";
 import { ConcursoSchema } from "./schema";
 import { AuthSchema } from "../auth/schema";
@@ -175,94 +172,4 @@ export const concursos = new Elysia({ prefix: "/concursos" })
       },
     }
   )
-  .put(
-    "/:id/rubrics",
-    async ({ body, params: { id }, set }) => {
-      const result = await assignRubricsToConcurso(id, body.rubrics);
-      if (!result.success) {
-        if (result.reason === "concurso_not_found") {
-          set.status = 404;
-          return ConcursoSchema.concursoNotFound.const;
-        }
-        set.status = 404;
-        return RubricSchema.notFound.const;
-      }
-      return result.concurso;
-    },
-    {
-      auth: true,
-      authorizeEvent: ["admin", "eventManager"],
-      body: t.Object({
-        rubrics: t.Array(
-          t.Object({
-            label: t.String(),
-            templateId: t.String(),
-          })
-        ),
-      }),
-      cookie: cookieSchema,
-      params: t.Object({ id: t.String() }),
-      response: {
-        200: ConcursoSchema.concursoResponse,
-        401: AuthSchema.unauthorized,
-        403: AuthSchema.forbidden,
-        404: t.Union([ConcursoSchema.concursoNotFound, RubricSchema.notFound]),
-      },
-    }
-  )
-  .get(
-    "/:id/rubrics",
-    async ({ params: { id }, set }) => {
-      const result = await getConcursoRubrics(id);
-      if (!result.success) {
-        set.status = 404;
-        return ConcursoSchema.concursoNotFound.const;
-      }
-      return { rubrics: result.rubrics, mode: result.mode };
-    },
-    {
-      auth: true,
-      authorizeEvent: ["admin", "eventManager"],
-      cookie: cookieSchema,
-      params: t.Object({ id: t.String() }),
-      response: {
-        200: t.Object({
-          rubrics: t.Array(
-            t.Object({
-              label: t.String(),
-              templateId: t.String(),
-              name: t.String(),
-              sections: t.Array(RubricSchema.rubricResponse.properties.sections.items),
-            })
-          ),
-          mode: t.Union([t.Literal("multi"), t.Literal("legacy"), t.Literal("none")]),
-        }),
-        401: AuthSchema.unauthorized,
-        403: AuthSchema.forbidden,
-        404: ConcursoSchema.concursoNotFound,
-      },
-    }
-  )
-  .delete(
-    "/:id/rubrics",
-    async ({ params: { id }, set }) => {
-      const result = await clearAssignedRubrics(id);
-      if (!result.success) {
-        set.status = 404;
-        return ConcursoSchema.concursoNotFound.const;
-      }
-      return result.concurso;
-    },
-    {
-      auth: true,
-      authorizeEvent: ["admin", "eventManager"],
-      cookie: cookieSchema,
-      params: t.Object({ id: t.String() }),
-      response: {
-        200: ConcursoSchema.concursoResponse,
-        401: AuthSchema.unauthorized,
-        403: AuthSchema.forbidden,
-        404: ConcursoSchema.concursoNotFound,
-      },
-    }
-  );
+;

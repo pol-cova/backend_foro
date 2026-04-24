@@ -62,7 +62,6 @@ export const EvaluationSchema = {
   createBody: t.Object({
     concursoId: t.String(),
     participantId: t.String(),
-    rubricTemplateId: t.Optional(t.String()),
     scores: t.Array(scoreEntrySchema),
     notes: t.Optional(t.String()),
   }),
@@ -72,7 +71,6 @@ export const EvaluationSchema = {
   conflict: t.Literal("Evaluation already exists for this judge and participant"),
   noRubric: t.Literal("Concurso does not have a rubric"),
   invalidScores: t.Literal("Invalid scores provided"),
-  rubricNotAllowed: t.Literal("Rubric is not assigned to this concurso"),
 } as const;
 
 export type EvaluationTypes = {
