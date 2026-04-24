@@ -62,6 +62,7 @@ export interface Evaluation {
   concursoId: mongoose.Types.ObjectId;
   judgeCodigo: string;
   participantId: mongoose.Types.ObjectId;
+  rubricTemplateId: mongoose.Types.ObjectId;
   scores: ScoreEntry[];
   totalScore: number;
   notes?: string;
@@ -82,6 +83,7 @@ const evaluationSchema = new mongoose.Schema<Evaluation>(
     concursoId: { type: mongoose.Schema.Types.ObjectId, required: true, ref: "Concurso" },
     judgeCodigo: { type: String, required: true },
     participantId: { type: mongoose.Schema.Types.ObjectId, required: true },
+    rubricTemplateId: { type: mongoose.Schema.Types.ObjectId, required: true, ref: "RubricTemplate" },
     scores: { type: [scoreEntrySchema], required: true },
     totalScore: { type: Number, required: true },
     notes: { type: String },

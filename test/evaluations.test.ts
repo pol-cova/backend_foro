@@ -372,7 +372,7 @@ describe("Evaluation System", () => {
       const data = await res.json();
       expect(Array.isArray(data)).toBe(true);
       expect(data.length).toBeGreaterThan(0);
-      expect(data[0].finalScore).toBe(17);
+      expect(data[0].finalScore).toBe(85);
       expect(data[0].evaluationsCount).toBe(1);
     });
 
@@ -531,7 +531,7 @@ describe("Evaluation System", () => {
         (r) => r.participantId === participant2Id
       );
       expect(newParticipantResult).toBeDefined();
-      expect(newParticipantResult!.finalScore).toBe(15);
+      expect(newParticipantResult!.finalScore).toBe(75);
 
       // Clean up
       reader.cancel();
@@ -790,8 +790,8 @@ describe("Evaluation System", () => {
       );
       expect(participant3Result).toBeDefined();
       expect(participant3Result!.evaluationsCount).toBe(2);
-      // finalScore = (14 + 18) / 2 = 16
-      expect(participant3Result!.finalScore).toBe(16);
+      // finalScore = ((14/20)*100 + (18/20)*100) / 2 = 80
+      expect(participant3Result!.finalScore).toBe(80);
 
       // c1 average = (6 + 8) / 2 = 7
       const c1Avg = participant3Result!.criterionAverages.find(
@@ -1193,8 +1193,8 @@ describe("Evaluation System", () => {
       expect(participant6Result!.evaluationsCount).toBe(2);
       expect(participant6Result!.totalJudgesForLevel).toBe(2);
       expect(participant6Result!.isComplete).toBe(true);
-      // finalScore = (11 + 15) / 2 = 13
-      expect(participant6Result!.finalScore).toBe(13);
+      // finalScore = ((11/20)*100 + (15/20)*100) / 2 = 65
+      expect(participant6Result!.finalScore).toBe(65);
 
       const c1Avg = participant6Result!.criterionAverages.find(
         (c) => c.criterionId === "c1"
