@@ -36,6 +36,7 @@ interface MongooseConcurso {
   niveles: string[];
   participantes?: MongooseParticipante[];
   allowMultiple?: boolean;
+  maxRegistrationsPerPerson?: number;
   rubricTemplateId?: unknown;
   createdAt?: Date;
   updatedAt?: Date;
@@ -82,6 +83,7 @@ export function mapConcursoToResponse(raw: MongooseConcurso): ConcursoOut {
     individuales,
     equipo,
     allowMultiple: raw.allowMultiple ?? false,
+    maxRegistrationsPerPerson: raw.maxRegistrationsPerPerson,
     rubricTemplateId: raw.rubricTemplateId ? String(raw.rubricTemplateId) : undefined,
     createdAt: raw.createdAt ?? new Date(),
     updatedAt: raw.updatedAt ?? new Date(),

@@ -33,6 +33,7 @@ export interface Concurso {
   niveles: string[];
   participantes: Participante[];
   allowMultiple?: boolean;
+  maxRegistrationsPerPerson?: number;
   rubricTemplateId?: mongoose.Types.ObjectId;
   createdAt?: Date;
   updatedAt?: Date;
@@ -77,6 +78,7 @@ const concursoSchema = new mongoose.Schema<Concurso>(
     niveles: { type: [String], required: true },
     participantes: { type: [participanteSchema], default: [] },
     allowMultiple: { type: Boolean, default: false },
+    maxRegistrationsPerPerson: { type: Number },
     rubricTemplateId: { type: mongoose.Schema.Types.ObjectId, ref: "RubricTemplate" },
   },
   { timestamps: true }

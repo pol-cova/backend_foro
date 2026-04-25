@@ -42,6 +42,7 @@ export const ConcursoSchema = {
     constraints: constraintInput,
     niveles: t.Array(t.String()),
     allowMultiple: t.Optional(t.Boolean()),
+    maxRegistrationsPerPerson: t.Optional(t.Number()),
   }),
   updateBody: t.Object({
     nombre: t.Optional(t.String()),
@@ -50,6 +51,7 @@ export const ConcursoSchema = {
     constraints: t.Optional(constraintInput),
     niveles: t.Optional(t.Array(t.String())),
     allowMultiple: t.Optional(t.Boolean()),
+    maxRegistrationsPerPerson: t.Optional(t.Number()),
   }),
   concursoResponse: t.Object({
     _id: t.String(),
@@ -63,6 +65,7 @@ export const ConcursoSchema = {
     individuales: t.Number(),
     equipo: t.Number(),
     allowMultiple: t.Optional(t.Boolean()),
+    maxRegistrationsPerPerson: t.Optional(t.Number()),
     rubricTemplateId: t.Optional(t.String()),
     createdAt: t.Date(),
     updatedAt: t.Date(),
@@ -80,6 +83,7 @@ export const ConcursoSchema = {
       individuales: t.Number(),
       equipo: t.Number(),
       allowMultiple: t.Optional(t.Boolean()),
+      maxRegistrationsPerPerson: t.Optional(t.Number()),
       rubricTemplateId: t.Optional(t.String()),
       createdAt: t.Date(),
       updatedAt: t.Date(),
