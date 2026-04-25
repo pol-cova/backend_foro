@@ -188,6 +188,12 @@ export class Logger {
     const status = res.status;
     const path = new URL(req.url).pathname;
     const method = req.method;
+    if (path === "/health") {
+      if (!this.shouldLog("debug")) return;
+      const line = formatEntry("debug", "HTTP", { method, path, status, durationMs }) + "\n";
+      process.stdout.write(line);
+      return;
+    }
     const ctx: Record<string, unknown> = { method, path, status, durationMs };
     if (status >= 500) ctx.outcome = "server_error";
     const level: LogLevel = status >= 500 ? "error" : status >= 400 ? "warn" : "info";

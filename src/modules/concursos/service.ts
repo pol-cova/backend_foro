@@ -30,6 +30,7 @@ export async function create(data: CreateData) {
     niveles: data.niveles,
     participantes: [],
     allowMultiple: data.allowMultiple ?? false,
+    ...(data.maxRegistrationsPerPerson !== undefined && { maxRegistrationsPerPerson: data.maxRegistrationsPerPerson }),
   });
   return { success: true as const, concurso: mapConcursoToResponse(concurso.toObject()) };
 }
@@ -53,6 +54,7 @@ export async function update(id: string, data: UpdateData) {
   if (data.cupo !== undefined) payload.cupo = data.cupo;
   if (data.sharedFields !== undefined) payload.sharedFields = data.sharedFields;
   if (data.allowMultiple !== undefined) payload.allowMultiple = data.allowMultiple;
+  if (data.maxRegistrationsPerPerson !== undefined) payload.maxRegistrationsPerPerson = data.maxRegistrationsPerPerson;
   if (data.niveles !== undefined) {
     if (data.niveles.length === 0) return { success: false as const, reason: "niveles_empty" as const };
     payload.niveles = data.niveles;

@@ -45,6 +45,18 @@ function resolveCampo(
   return { missing: true };
 }
 
+function pickIndexedField(campos: Record<string, string>, base: string): string | undefined {
+  if (campos[base]?.trim()) return campos[base].trim();
+  const re = new RegExp(`^${base}_(\\d+)$`, "i");
+  const matches: { index: number; value: string }[] = [];
+  for (const [k, v] of Object.entries(campos)) {
+    const m = re.exec(k);
+    if (m && v.trim()) matches.push({ index: Number(m[1]), value: v.trim() });
+  }
+  matches.sort((a, b) => a.index - b.index);
+  return matches[0]?.value;
+}
+
 function getRequiredFields(constraint: ConstraintConfig): string[] {
   if (constraint.fields && constraint.fields.length > 0) return constraint.fields;
   if (constraint.field && constraint.field !== "true" && constraint.field !== "false") {
@@ -63,7 +75,7 @@ export async function addParticipante(concursoId: string, data: RegisterData) {
   if (!mongoose.isValidObjectId(concursoId)) return { success: false as const, reason: "not_found" as const };
 
   const concurso = await ConcursoModel.findById(concursoId)
-    .select("constraints sharedFields niveles allowMultiple cupo nombre")
+    .select("constraints sharedFields niveles allowMultiple maxRegistrationsPerPerson cupo nombre")
     .lean();
   if (!concurso) return { success: false as const, reason: "not_found" as const };
 
@@ -83,9 +95,9 @@ export async function addParticipante(concursoId: string, data: RegisterData) {
 
   const e = {
     codigo: normalized.codigo,
-    nombre: campos["nombre_completo"] ?? campos["nombre"] ?? normalized.codigo,
-    correo: campos["correo"] ?? "",
-    carrera: campos["carrera_o_semestre"] ?? campos["carrera"] ?? "",
+    nombre: campos["nombre_completo"] ?? pickIndexedField(campos, "nombre") ?? normalized.codigo,
+    correo: pickIndexedField(campos, "correo") ?? "",
+    carrera: campos["carrera_o_semestre"] ?? pickIndexedField(campos, "carrera") ?? "",
     semestre: normalized.semestre,
     escuela: campos["institucion"] ?? "CUVALLES",
   };
@@ -120,13 +132,12 @@ export async function addParticipante(concursoId: string, data: RegisterData) {
   const nuevo = countParticipantes(participante);
   if (ocupacion + nuevo > doc.cupo) return { success: false as const, reason: "cupo_exceeded" as const };
 
-  const allowMultiple = doc.allowMultiple === true;
-  const blockCodigoTipoDuplicate = !allowMultiple && !esModalidadEquipo(normalized.tipo);
-  if (blockCodigoTipoDuplicate) {
-    const exists = (doc.participantes ?? []).some(
+  const maxRegistrations = doc.maxRegistrationsPerPerson ?? (doc.allowMultiple === true ? Infinity : 1);
+  if (!esModalidadEquipo(normalized.tipo)) {
+    const existingCount = (doc.participantes ?? []).filter(
       (p) => String(p.codigo) === String(participante.codigo) && String(p.tipo) === String(normalized.tipo)
-    );
-    if (exists) return { success: false as const, reason: "already_registered" as const };
+    ).length;
+    if (existingCount >= maxRegistrations) return { success: false as const, reason: "already_registered" as const };
   }
 
   doc.participantes.push(participante);
