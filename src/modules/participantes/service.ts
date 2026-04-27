@@ -243,6 +243,56 @@ export async function resendConfirmacionEmail(
   }
 }
 
+export async function changeNivel(
+  concursoId: string,
+  participacionId: string,
+  data: { nivel: string; razon: string }
+): Promise<
+  | { success: true; nivel: string; mailTo: string | null; participanteName: string; concursoNombre: string }
+  | { success: false; reason: "not_found" | "participante_not_found" | "nivel_no_permitido" | "mismo_nivel" }
+> {
+  if (!mongoose.isValidObjectId(concursoId) || !mongoose.isValidObjectId(participacionId)) {
+    return { success: false, reason: "not_found" };
+  }
+
+  const concurso = await ConcursoModel.findById(concursoId)
+    .select("nombre niveles participantes")
+    .lean();
+  if (!concurso) return { success: false, reason: "not_found" };
+
+  if (!concurso.niveles.includes(data.nivel)) {
+    return { success: false, reason: "nivel_no_permitido" };
+  }
+
+  const participante = (concurso.participantes ?? []).find(
+    (p) => String(p._id) === participacionId
+  );
+  if (!participante) return { success: false, reason: "participante_not_found" };
+
+  if (participante.nivel === data.nivel) {
+    return { success: false, reason: "mismo_nivel" };
+  }
+
+  await ConcursoModel.findOneAndUpdate(
+    { _id: concursoId, "participantes._id": new mongoose.Types.ObjectId(participacionId) },
+    { $set: { "participantes.$.nivel": data.nivel } }
+  );
+
+  const camposRaw = participante.campos instanceof Map
+    ? Object.fromEntries(participante.campos)
+    : (participante.campos ?? {});
+  const campos = camposRaw as Record<string, string>;
+  const mailTo = (campos["correo"] ?? "").trim() || String(participante.correo ?? "").trim() || null;
+
+  return {
+    success: true,
+    nivel: data.nivel,
+    mailTo,
+    participanteName: participante.nombre,
+    concursoNombre: concurso.nombre ?? "",
+  };
+}
+
 export async function listParticipantes(concursoId: string) {
   if (!mongoose.isValidObjectId(concursoId)) return { success: false as const, reason: "not_found" as const };
   const concurso = await ConcursoModel.findById(concursoId).lean();

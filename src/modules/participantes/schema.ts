@@ -51,6 +51,11 @@ export const ParticipanteSchema = {
   confirmacionEmailNoCorreo: t.Literal("No email address for confirmation"),
   confirmacionEmailSmtpFailed: t.Literal("Confirmation email could not be sent"),
   confirmacionEmailResendOk: t.Object({ ok: t.Literal(true) }),
+  changeNivelBody: t.Object({
+    nivel: t.String({ minLength: 1, maxLength: 64 }),
+    razon: t.String({ minLength: 1, maxLength: 512 }),
+  }),
+  changeNivelResponse: t.Object({ ok: t.Literal(true), nivel: t.String() }),
 } as const;
 
 export { MAX_CAMPOS_KEYS };
