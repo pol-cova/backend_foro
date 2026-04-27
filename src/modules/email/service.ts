@@ -4,6 +4,7 @@ import { config } from "../../config";
 import { captureException } from "../../lib/error-tracker";
 import { logger } from "../../lib/logger";
 import SuccessEmail from "./success";
+import CambioNivelEmail from "./cambio-nivel";
 
 const transporter = nodemailer.createTransport({
   host: config.smtp.host,
@@ -60,6 +61,57 @@ function sanitizePayload(payload: InscripcionConfirmPayload): InscripcionConfirm
     campos: sanitizedCampos,
     totalParticipantes: Number(payload.totalParticipantes) || 0,
   };
+}
+
+export interface CambioNivelPayload {
+  nombre: string;
+  concurso: string;
+  nivelNuevo: string;
+  razon: string;
+}
+
+type CambioNivelCaptureEntry = { to: string; payload: CambioNivelPayload };
+
+let cambioNivelCapture: ((entry: CambioNivelCaptureEntry) => void) | null = null;
+
+export function setCambioNivelCapture(cb: ((entry: CambioNivelCaptureEntry) => void) | null) {
+  cambioNivelCapture = cb;
+}
+
+export function clearCambioNivelCapture() {
+  cambioNivelCapture = null;
+}
+
+export async function sendCambioNivel(to: string, payload: CambioNivelPayload): Promise<boolean> {
+  if (!to?.trim()) {
+    logger.warn("sendCambioNivel skipped: empty correo", { module: "email", to });
+    return false;
+  }
+  if (!payload.nombre?.trim() || !payload.concurso?.trim() || !payload.nivelNuevo?.trim()) {
+    logger.warn("sendCambioNivel skipped: invalid payload", { module: "email", payload });
+    return false;
+  }
+
+  if (config.testing) {
+    if (cambioNivelCapture) cambioNivelCapture({ to: to.trim(), payload });
+    return true;
+  }
+
+  const subject = `Cambio de Nivel - ${payload.concurso}`;
+  const html = await render(CambioNivelEmail(payload));
+
+  try {
+    await transporter.sendMail({ from: config.smtp.from, to: to.trim(), subject, html });
+    logger.info("sendCambioNivel sent", { module: "email", to: to.trim(), subject });
+    return true;
+  } catch (err) {
+    logger.error("sendCambioNivel failed", { module: "email", error: err });
+    captureException(err, {
+      tags: { source: "email", action: "sendCambioNivel" },
+      extra: { to: to.trim(), subject },
+    });
+    throw err;
+  }
 }
 
 export async function sendInscripcionConfirm(to: string, payload: InscripcionConfirmPayload): Promise<boolean> {

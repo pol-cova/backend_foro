@@ -6,11 +6,13 @@ import { getCurrentRequestId } from "../../lib/logger";
 import { getServerRef } from "../../lib/server-ref";
 import {
   addParticipante,
+  changeNivel,
   listParticipantes,
   removeParticipante,
   resendConfirmacionEmail,
   scheduleConfirmacionEmailAfterRegister,
 } from "./service";
+import { sendCambioNivel } from "../email/service";
 import { ParticipanteSchema } from "./schema";
 import { cookieSchema, sharedAuthResponses } from "../auth/common";
 import { AuthSchema } from "../auth/schema";
@@ -154,6 +156,51 @@ export const participantes = new Elysia({ prefix: "/:id/participantes" })
         404: t.Union([ParticipanteSchema.concursoNotFound, ParticipanteSchema.participanteNotFound]),
         502: ParticipanteSchema.confirmacionEmailSmtpFailed,
         ...sharedAuthResponses,
+      },
+    }
+  )
+  .patch(
+    "/:participacionId/nivel",
+    async ({ params: { id, participacionId }, body, set }) => {
+      const result = await changeNivel(id, participacionId, body);
+      if (!result.success) {
+        if (result.reason === "participante_not_found") {
+          set.status = 404;
+          return ParticipanteSchema.participanteNotFound.const;
+        }
+        if (result.reason === "not_found") {
+          set.status = 404;
+          return ParticipanteSchema.concursoNotFound.const;
+        }
+        set.status = 400;
+        return ParticipanteSchema.nivelNoPermitido.const;
+      }
+      if (result.mailTo) {
+        void (async () => {
+          try {
+            await sendCambioNivel(result.mailTo!, {
+              nombre: result.participanteName,
+              concurso: result.concursoNombre,
+              nivelNuevo: result.nivel,
+              razon: body.razon,
+            });
+          } catch {}
+        })();
+      }
+      return { ok: true as const, nivel: result.nivel };
+    },
+    {
+      auth: true,
+      authorizeEvent: ["admin", "eventManager"],
+      cookie: cookieSchema,
+      body: ParticipanteSchema.changeNivelBody,
+      params: t.Object({ id: t.String(), participacionId: t.String() }),
+      response: {
+        200: ParticipanteSchema.changeNivelResponse,
+        400: ParticipanteSchema.nivelNoPermitido,
+        401: AuthSchema.unauthorized,
+        403: AuthSchema.forbidden,
+        404: t.Union([ParticipanteSchema.concursoNotFound, ParticipanteSchema.participanteNotFound]),
       },
     }
   )
