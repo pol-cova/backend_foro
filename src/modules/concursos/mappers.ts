@@ -1,6 +1,7 @@
 import type { ConcursoTypes } from "./schema";
 import type { ConfirmacionEmailEstado, Participante } from "./mongoose";
 import { resumenParticipacionConcurso } from "./participante-count";
+import { normalizeCarrera } from "../../lib/carrera-utils";
 
 type ConcursoOut = ConcursoTypes["concursoResponse"];
 type ParticipanteOut = ConcursoOut["participantes"][number];
@@ -56,6 +57,7 @@ export function mapParticipante(raw: MongooseParticipante): ParticipanteOut {
     codigo: raw.codigo,
     nombre: raw.nombre,
     carrera: raw.carrera,
+    carreraNormalizada: normalizeCarrera(raw.carrera),
     semestre: raw.semestre,
     correo: raw.correo,
     escuela: raw.escuela,

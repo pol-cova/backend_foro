@@ -14,12 +14,12 @@ export interface RubricSection {
 }
 
 export interface RubricTemplate {
-  _id?: mongoose.Types.ObjectId;
+  _id: mongoose.Types.ObjectId;
   name: string;
   sections: RubricSection[];
   createdBy: string;
-  createdAt?: Date;
-  updatedAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 const criterionSchema = new mongoose.Schema<Criterion>(
@@ -58,7 +58,7 @@ export interface ScoreEntry {
 }
 
 export interface Evaluation {
-  _id?: mongoose.Types.ObjectId;
+  _id: mongoose.Types.ObjectId;
   concursoId: mongoose.Types.ObjectId;
   judgeCodigo: string;
   participantId: mongoose.Types.ObjectId;
@@ -66,8 +66,8 @@ export interface Evaluation {
   scores: ScoreEntry[];
   totalScore: number;
   notes?: string;
-  createdAt?: Date;
-  updatedAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 const scoreEntrySchema = new mongoose.Schema<ScoreEntry>(

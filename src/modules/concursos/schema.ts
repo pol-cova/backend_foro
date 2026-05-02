@@ -24,6 +24,7 @@ const participanteResponse = t.Object({
   codigo: t.String(),
   nombre: t.String(),
   carrera: t.String(),
+  carreraNormalizada: t.String(),
   semestre: t.Number(),
   correo: t.String(),
   escuela: t.String(),
