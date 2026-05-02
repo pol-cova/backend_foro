@@ -9,7 +9,10 @@ type ErrorTrackerContext = {
 
 let trackerEnabled = false;
 
-function applyTrackerContext(scope: Sentry.Scope, context?: ErrorTrackerContext): void {
+function applyTrackerContext(
+  scope: Sentry.Scope,
+  context?: ErrorTrackerContext,
+): void {
   if (context?.requestId) scope.setTag("request_id", context.requestId);
   for (const [key, value] of Object.entries(context?.tags ?? {})) {
     scope.setTag(key, value);
@@ -47,7 +50,10 @@ export function severityForHttpStatus(status: number): SeverityLevel {
   return "info";
 }
 
-export function captureException(error: unknown, context?: ErrorTrackerContext): void {
+export function captureException(
+  error: unknown,
+  context?: ErrorTrackerContext,
+): void {
   if (!trackerEnabled) return;
 
   Sentry.withScope((scope) => {
@@ -60,7 +66,11 @@ export function captureException(error: unknown, context?: ErrorTrackerContext):
  * Use for outcomes that are not exceptions (e.g. registration rejected with 4xx).
  * Shows up in Bugsink as a message event, grouped by message + tags.
  */
-export function captureMessage(message: string, level: SeverityLevel, context?: ErrorTrackerContext): void {
+export function captureMessage(
+  message: string,
+  level: SeverityLevel,
+  context?: ErrorTrackerContext,
+): void {
   if (!trackerEnabled) return;
 
   Sentry.withScope((scope) => {

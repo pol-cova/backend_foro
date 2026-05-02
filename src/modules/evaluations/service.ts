@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import { RubricTemplateModel, EvaluationModel } from "./mongoose";
+import { RubricTemplateModel, EvaluationModel, type RubricTemplate, type Evaluation } from "./mongoose";
 import { ConcursoModel } from "../concursos/mongoose";
 import { JudgeModel } from "../judges/mongoose";
 import { mapConcursoToResponse } from "../concursos/mappers";
@@ -10,16 +10,7 @@ type RubricCreateData = RubricTypes["createBody"];
 type RubricUpdateData = RubricTypes["updateBody"];
 type EvaluationCreateData = EvaluationTypes["createBody"];
 
-interface RubricTemplateDoc {
-  _id: mongoose.Types.ObjectId;
-  name: string;
-  sections: unknown;
-  createdBy: string;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-function mapRubricToResponse(rubric: RubricTemplateDoc) {
+function mapRubricToResponse(rubric: RubricTemplate) {
   return {
     _id: String(rubric._id),
     name: rubric.name,
@@ -202,20 +193,7 @@ export async function createEvaluation(data: EvaluationCreateData, judgeCodigo: 
   }
 }
 
-interface EvaluationDoc {
-  _id: mongoose.Types.ObjectId;
-  concursoId: mongoose.Types.ObjectId;
-  judgeCodigo: string;
-  participantId: mongoose.Types.ObjectId;
-  rubricTemplateId: mongoose.Types.ObjectId;
-  scores: unknown;
-  totalScore: number;
-  notes?: string;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-function mapEvaluationToResponse(evaluation: EvaluationDoc) {
+function mapEvaluationToResponse(evaluation: Evaluation) {
   return {
     _id: String(evaluation._id),
     concursoId: String(evaluation.concursoId),

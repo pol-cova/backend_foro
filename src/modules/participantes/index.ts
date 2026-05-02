@@ -13,6 +13,7 @@ import {
   scheduleConfirmacionEmailAfterRegister,
 } from "./service";
 import { sendCambioNivel } from "../email/service";
+import { normalizeCarrera } from "../../lib/carrera-utils";
 import { ParticipanteSchema } from "./schema";
 import { cookieSchema, sharedAuthResponses } from "../auth/common";
 import { AuthSchema } from "../auth/schema";
@@ -104,7 +105,7 @@ export const participantes = new Elysia({ prefix: "/:id/participantes" })
         });
       }
       set.status = 201;
-      return result.participante;
+      return { ...result.participante, carreraNormalizada: normalizeCarrera(result.participante.carrera) };
     },
     {
       body: ParticipanteSchema.registerBody,

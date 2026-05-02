@@ -3,6 +3,7 @@ import * as XLSX from "xlsx";
 import { ConcursoModel } from "../concursos/mongoose";
 import { EvaluationModel } from "./mongoose";
 import { RubricTemplateModel } from "./mongoose";
+import { normalizeCarrera } from "../../lib/carrera-utils";
 
 function sanitizeFilename(name: string): string {
   return name.replace(/[^a-zA-Z0-9\-_]/g, "_").substring(0, 50);
@@ -26,6 +27,7 @@ export async function exportParticipants(concursoId: string) {
     "Codigo",
     "Nombre",
     "Carrera",
+    "Carrera Normalizada",
     "Semestre",
     "Correo",
     "Escuela",
@@ -52,6 +54,7 @@ export async function exportParticipants(concursoId: string) {
       Codigo: p.codigo,
       Nombre: p.nombre,
       Carrera: p.carrera,
+      "Carrera Normalizada": normalizeCarrera(p.carrera),
       Semestre: p.semestre,
       Correo: p.correo,
       Escuela: p.escuela,
