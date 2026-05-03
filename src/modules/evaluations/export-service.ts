@@ -9,6 +9,80 @@ function sanitizeFilename(name: string): string {
   return name.replace(/[^a-zA-Z0-9\-_]/g, "_").substring(0, 50);
 }
 
+const MEMBER_FIELDS = ["nombre", "codigo", "correo", "tel", "carrera", "semestre"] as const;
+const SKIP_IN_SHARED = new Set([...MEMBER_FIELDS.flatMap((f) => [1, 2, 3].map((i) => `${f}_${i}`))]);
+
+function expandParticipante(p: { tipo: string; codigo: string; nombre: string; carrera: string; semestre: number; correo: string; escuela: string; nivel: string; campos: Record<string, string> }) {
+  const campos = p.campos;
+
+  if (p.tipo !== "modalidad_equipo") {
+    return [{
+      codigo: p.codigo,
+      nombre: p.nombre,
+      carrera: p.carrera,
+      semestre: String(p.semestre),
+      correo: p.correo,
+      telefono: "",
+      escuela: p.escuela,
+      nivel: p.nivel,
+      tipo: p.tipo,
+      nombre_equipo: "Individual",
+      descripcion_proyecto: campos["descripcion_proyecto"] ?? "",
+      institucion: campos["institucion"] ?? p.escuela,
+    }];
+  }
+
+  const shared = {
+    escuela: p.escuela,
+    nivel: p.nivel,
+    tipo: p.tipo,
+    nombre_equipo: campos["nombre_equipo"] ?? "",
+    descripcion_proyecto: campos["descripcion_proyecto"] ?? "",
+    institucion: campos["institucion"] ?? p.escuela,
+  };
+
+  const members = [];
+  for (let i = 1; i <= 10; i++) {
+    const nombre = campos[`nombre_${i}`];
+    if (!nombre || nombre.trim() === "" || nombre.trim().toUpperCase() === "N/A") break;
+    members.push({
+      codigo: campos[`codigo_${i}`] ?? "",
+      nombre,
+      carrera: campos[`carrera_${i}`] ?? "",
+      semestre: campos[`semestre_${i}`] ?? "",
+      correo: campos[`correo_${i}`] ?? "",
+      telefono: campos[`tel_${i}`] ?? "",
+      ...shared,
+    });
+  }
+
+  return members.length > 0 ? members : [{
+    codigo: p.codigo,
+    nombre: p.nombre,
+    carrera: p.carrera,
+    semestre: String(p.semestre),
+    correo: p.correo,
+    telefono: "",
+    ...shared,
+  }];
+}
+
+function buildCarreraCanonical(rawCarreras: string[]): Map<string, string> {
+  const map = new Map<string, string>();
+  const byBase = new Map<string, string[]>();
+  for (const c of rawCarreras) {
+    const base = c.replace(/\s*\([^)]*\)\s*$/, "").trim().toUpperCase();
+    const list = byBase.get(base) ?? [];
+    list.push(c);
+    byBase.set(base, list);
+  }
+  for (const versions of byBase.values()) {
+    const canonical = versions.find((v) => /\([^)]+\)/.test(v)) ?? versions[0];
+    for (const v of versions) map.set(v.toUpperCase(), canonical);
+  }
+  return map;
+}
+
 export async function exportParticipants(concursoId: string) {
   if (!mongoose.isValidObjectId(concursoId)) {
     return { success: false as const, reason: "not_found" as const };
@@ -19,53 +93,51 @@ export async function exportParticipants(concursoId: string) {
     return { success: false as const, reason: "not_found" as const };
   }
 
-  const participants = concurso.participantes ?? [];
-
-  // Build headers
   const headers = [
-    "No.",
-    "Codigo",
-    "Nombre",
-    "Carrera",
-    "Carrera Normalizada",
-    "Semestre",
-    "Correo",
-    "Escuela",
-    "Nivel",
-    "Tipo",
+    "No.", "Nombre Equipo", "Codigo", "Nombre", "Carrera",
+    "Semestre", "Correo", "Telefono", "Institucion", "Nivel", "Tipo",
+    "Descripcion Proyecto",
   ];
 
-  // Collect all unique campo keys
-  const campoKeys = new Set<string>();
-  for (const p of participants) {
+  // First pass: collect all raw carrera values to build canonical map
+  const allCarreras: string[] = [];
+  for (const p of concurso.participantes ?? []) {
     const campos = p.campos instanceof Map ? Object.fromEntries(p.campos) : (p.campos ?? {});
-    for (const key of Object.keys(campos)) {
-      campoKeys.add(key);
+    for (let i = 1; i <= 10; i++) {
+      const c = campos[`carrera_${i}`];
+      if (!c || c.trim().toUpperCase() === "N/A") break;
+      allCarreras.push(c);
+    }
+    if (p.carrera) allCarreras.push(p.carrera);
+  }
+  const carreraCanonical = buildCarreraCanonical(allCarreras);
+
+  const resolveCarrera = (raw: string) =>
+    normalizeCarrera(carreraCanonical.get(raw.toUpperCase()) ?? raw);
+
+  let rowNum = 1;
+  const rows: Record<string, string | number>[] = [];
+
+  for (const p of concurso.participantes ?? []) {
+    const campos = p.campos instanceof Map ? Object.fromEntries(p.campos) : (p.campos ?? {});
+    const members = expandParticipante({ ...p, campos });
+    for (const m of members) {
+      rows.push({
+        "No.": rowNum++,
+        "Nombre Equipo": m.nombre_equipo,
+        Codigo: m.codigo,
+        Nombre: m.nombre,
+        Carrera: resolveCarrera(m.carrera),
+        Semestre: m.semestre,
+        Correo: m.correo,
+        Telefono: m.telefono,
+        Institucion: m.institucion,
+        Nivel: m.nivel,
+        Tipo: m.tipo,
+        "Descripcion Proyecto": m.descripcion_proyecto,
+      });
     }
   }
-  const sortedCampoKeys = Array.from(campoKeys).sort();
-  headers.push(...sortedCampoKeys);
-
-  // Build rows
-  const rows = participants.map((p, index) => {
-    const campos = p.campos instanceof Map ? Object.fromEntries(p.campos) : (p.campos ?? {});
-    const row: Record<string, string | number> = {
-      "No.": index + 1,
-      Codigo: p.codigo,
-      Nombre: p.nombre,
-      Carrera: p.carrera,
-      "Carrera Normalizada": normalizeCarrera(p.carrera),
-      Semestre: p.semestre,
-      Correo: p.correo,
-      Escuela: p.escuela,
-      Nivel: p.nivel,
-      Tipo: p.tipo,
-    };
-    for (const key of sortedCampoKeys) {
-      row[key] = campos[key] ?? "";
-    }
-    return row;
-  });
 
   const worksheet = XLSX.utils.json_to_sheet(rows, { header: headers });
   const workbook = XLSX.utils.book_new();
