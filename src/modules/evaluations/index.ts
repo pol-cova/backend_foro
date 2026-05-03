@@ -10,6 +10,7 @@ import {
   updateRubric,
   deleteRubric,
   createEvaluation,
+  listAllEvaluations,
   listMyEvaluations,
   listConcursoEvaluations,
   getResults,
@@ -122,6 +123,30 @@ const rubrics = new Elysia({ prefix: "/rubrics" })
 
 const evaluationRoutes = new Elysia({ prefix: "/evaluations" })
   .use(auth)
+  .get(
+    "/",
+    async ({ query }) => {
+      const result = await listAllEvaluations(query.concursoId);
+      if (!result.success) {
+        return { evaluations: [] };
+      }
+      return { evaluations: result.evaluations };
+    },
+    {
+      auth: true,
+      authorize: ["admin", "eventManager"],
+      cookie: cookieSchema,
+      query: t.Object({
+        concursoId: t.Optional(t.String()),
+      }),
+      response: {
+        200: t.Object({
+          evaluations: EvaluationSchema.evaluationsListResponse,
+        }),
+        ...sharedAuthResponses,
+      },
+    }
+  )
   .post(
     "/",
     async ({ body, user, set }) => {
