@@ -22,8 +22,22 @@ describe("normalizeCarrera", () => {
     expect(normalizeCarrera("  arquitectura  ")).toBe("Arquitectura");
   });
 
-  it("returns empty string for empty input", () => {
-    expect(normalizeCarrera("")).toBe("");
-    expect(normalizeCarrera("   ")).toBe("");
+  it("returns N/A for empty or numeric input", () => {
+    expect(normalizeCarrera("")).toBe("N/A");
+    expect(normalizeCarrera("   ")).toBe("N/A");
+    expect(normalizeCarrera("2")).toBe("N/A");
+    expect(normalizeCarrera("123")).toBe("N/A");
+  });
+
+  it("preserves parenthesized acronyms", () => {
+    expect(normalizeCarrera("INGENIERIA EN ELECTRONICA Y COMPUTACION (IELC)")).toBe(
+      "Ingenieria en Electronica y Computacion (IELC)"
+    );
+  });
+
+  it("title-cases all-caps input without parenthesized acronym", () => {
+    expect(normalizeCarrera("INGENIERIA EN ELECTRONICA Y COMPUTACION")).toBe(
+      "Ingenieria en Electronica y Computacion"
+    );
   });
 });
