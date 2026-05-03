@@ -208,6 +208,16 @@ function mapEvaluationToResponse(evaluation: Evaluation) {
   };
 }
 
+export async function listAllEvaluations(concursoId?: string) {
+  const query: Record<string, unknown> = {};
+  if (concursoId) {
+    if (!mongoose.isValidObjectId(concursoId)) return { success: false as const, reason: "invalid_concurso_id" as const };
+    query.concursoId = new mongoose.Types.ObjectId(concursoId);
+  }
+  const evaluations = await EvaluationModel.find(query).select("-__v").lean();
+  return { success: true as const, evaluations: evaluations.map(mapEvaluationToResponse) };
+}
+
 export async function listMyEvaluations(judgeCodigo: string, concursoId?: string) {
   const query: Record<string, unknown> = { judgeCodigo };
   if (concursoId) {
